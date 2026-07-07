@@ -1,0 +1,160 @@
+.trigger {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--muted);
+  padding: 0;
+}
+
+.trigger:hover {
+  color: var(--text);
+}
+
+.badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  border: 2px solid var(--panel);
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  padding: 0 4px;
+}
+
+.modal {
+  width: min(900px, 96vw);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.header h3,
+.header p {
+  margin: 0;
+}
+
+.header p {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 34%) minmax(0, 1fr);
+  min-height: 360px;
+  max-height: 60vh;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.list {
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.item {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 12px;
+  text-align: left;
+}
+
+.item:hover,
+.selected {
+  background: rgba(79, 140, 255, 0.12);
+}
+
+.itemTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.unreadDot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.item time,
+.detail time {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.detail {
+  overflow: auto;
+  padding: 20px;
+}
+
+.detail h4 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.detail p {
+  margin: 18px 0 0;
+  color: var(--text);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.detailState {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.state {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+}
+
+@media (max-width: 640px) {
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .list {
+    max-height: 210px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}

@@ -1,0 +1,17 @@
+# Runs the Fasten Share web client as a self-contained Next.js Node server.
+#
+# Run:   docker compose up -d --build      then open http://localhost:8086
+#
+# The producer opens an outbound WebSocket to fasten-share-server.
+services:
+  client:
+    build: .
+    image: fasten-share-client
+    container_name: fasten-share-client
+    environment:
+      - PORT=8086
+      - HOSTNAME=0.0.0.0
+      - FS_SERVER_HTTP_URL=http://host.docker.internal:8080
+    ports:
+      - "8086:8086"
+    restart: unless-stopped

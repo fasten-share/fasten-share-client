@@ -1,0 +1,10 @@
+.modal {
+  width: min(720px, 92vw);
+}
+
+.content {
+  color: var(--muted);
+  line-height: 1.75;
+  margin-bottom: 18px;
+  white-space: pre-wrap;
+}

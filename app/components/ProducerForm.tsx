@@ -1,0 +1,602 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import {
+  control,
+  loadBackends,
+  saveBackends,
+  newBackendId,
+  type BackendInput,
+  type Status,
+  type StoredBackend,
+} from '@/lib/control-client';
+import { normalizeCostMultiplier } from '@/lib/cost';
+import { normalizeMaxConcurrency } from '@/lib/concurrency';
+import {
+  defaultVersionPrefix,
+  versionPrefixOrDefault,
+  normalizeVersionPrefix,
+} from '@/lib/version-prefix';
+import { useI18n } from '@/lib/i18n/context';
+import { BaseUrlGuideModal } from './BaseUrlGuideModal';
+import { SharingDisclaimerModal } from './SharingDisclaimerModal';
+import {
+  TOOL_IDS,
+  normalizeSupportedTools,
+  toolsForProtocol,
+  type ToolId,
+} from '@/lib/tool-support';
+import styles from './ProducerForm.module.css';
+
+const LOCAL_PRESET = 'http://localhost:11434';
+const ONLINE_PRESET = 'https://api.openai.com';
+const DISCLAIMER_ACCEPTED_KEY = 'fs.producerDisclaimerAccepted.v1';
+
+/** Editable fields for one backend card / the new-backend draft. */
+interface Draft {
+  baseUrl: string;
+  protocol: string;
+  apiVersion: string;
+  modelsText: string;
+  costMultiplier: number;
+  maxConcurrency: number;
+  apiKey: string;
+  supportedTools: ToolId[];
+  versionPrefix: string;
+}
+interface Card extends Draft {
+  id: string;
+  enabled: boolean; // user start/stop (not an editable field — set via the buttons)
+}
+
+const emptyDraft = (): Draft => ({
+  baseUrl: LOCAL_PRESET,
+  protocol: 'openai',
+  apiVersion: '',
+  modelsText: '',
+  costMultiplier: 1,
+  maxConcurrency: 5,
+  apiKey: '',
+  supportedTools: ['curl'],
+  versionPrefix: defaultVersionPrefix('openai'),
+});
+
+function toCard(b: StoredBackend): Card {
+  return {
+    id: b.id,
+    baseUrl: b.baseUrl,
+    protocol: b.protocol,
+    apiVersion: b.apiVersion ?? '',
+    modelsText: b.models.join(', '),
+    costMultiplier: normalizeCostMultiplier(b.costMultiplier),
+    maxConcurrency: normalizeMaxConcurrency(b.maxConcurrency),
+    apiKey: b.apiKey ?? '',
+    enabled: b.enabled !== false,
+    supportedTools: normalizeSupportedTools(b.supportedTools, b.protocol),
+    versionPrefix: versionPrefixOrDefault(b.versionPrefix, b.protocol),
+  };
+}
+
+function parseModels(text: string): string[] {
+  return text
+    .split(/[,\n]/)
+    .map((m) => m.trim())
+    .filter(Boolean);
+}
+
+function toStored(c: Card): StoredBackend {
+  return {
+    id: c.id,
+    baseUrl: c.baseUrl.trim().replace(/\/+$/, ''),
+    protocol: c.protocol.trim(),
+    models: parseModels(c.modelsText),
+    costMultiplier: normalizeCostMultiplier(c.costMultiplier),
+    maxConcurrency: normalizeMaxConcurrency(c.maxConcurrency),
+    apiKey: c.apiKey || undefined,
+    apiVersion: c.protocol === 'azure-openai' ? c.apiVersion.trim() || undefined : undefined,
+    enabled: c.enabled,
+    supportedTools: normalizeSupportedTools(c.supportedTools, c.protocol),
+    versionPrefix:
+      normalizeVersionPrefix(c.versionPrefix) ?? c.versionPrefix.trim(),
+  };
+}
+
+/** Build the control-plane payload. '***' means "key unchanged" -> omit it. */
+function toInput(c: Card): BackendInput {
+  const s = toStored(c);
+  return { ...s, apiKey: c.apiKey && c.apiKey !== '***' ? c.apiKey : undefined };
+}
+
+export function ProducerForm({
+  status,
+  onChanged,
+  notice,
+  currentUserId,
+}: {
+  status: Status;
+  onChanged: (s: Status) => void;
+  notice?: string;
+  currentUserId: string;
+}) {
+  const { t } = useI18n();
+  const [cards, setCards] = useState<Card[]>([]);
+  // Ids that exist locally but were never added to the server yet (drafts).
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [msgById, setMsgById] = useState<Record<string, string>>({});
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const pendingShareRef = useRef<(() => Promise<void>) | null>(null);
+
+  // Prefill from localStorage (the browser's copy of the backend configs).
+  useEffect(() => {
+    const loaded = loadBackends(currentUserId).map(toCard);
+    setCards(loaded);
+    setSelectedId(loaded[0]?.id ?? null);
+  }, [currentUserId]);
+
+  const connected = status.signaling.connected;
+
+  /** Persist only the already-saved backends (drafts are excluded). */
+  function persist(list: Card[], drafts: Set<string>): void {
+    saveBackends(currentUserId, list.filter((c) => !drafts.has(c.id)).map(toStored));
+  }
+
+  function patchCard(id: string, patch: Partial<Draft>): void {
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  }
+
+  function failMsg(reason?: string): string {
+    return t('producer.healthCheckFailed', { reason: reason ?? t('producer.healthReasonUnknown') });
+  }
+
+  function hasInvalidVersionPrefix(c: Card): boolean {
+    if (normalizeVersionPrefix(c.versionPrefix)) return false;
+    setMsgById((p) => ({ ...p, [c.id]: t('producer.versionPrefixInvalid') }));
+    return true;
+  }
+
+  function addNew(): void {
+    const card: Card = { ...emptyDraft(), id: newBackendId(), enabled: true };
+    setCards((prev) => [...prev, card]);
+    setNewIds((prev) => new Set(prev).add(card.id));
+    setSelectedId(card.id);
+    setMsgById((p) => ({ ...p, [card.id]: '' }));
+  }
+
+  async function addDraft(c: Card) {
+    if (hasInvalidVersionPrefix(c)) return;
+    const s = await control({ action: 'addBackend', backend: toInput(c) });
+    onChanged(s);
+    if (s.check && !s.check.ok) {
+      setMsgById((p) => ({ ...p, [c.id]: failMsg(s.check?.reason) }));
+      return;
+    }
+    const drafts = new Set(newIds);
+    drafts.delete(c.id);
+    setNewIds(drafts);
+    persist(cards, drafts);
+    setMsgById((p) => ({ ...p, [c.id]: t('producer.savedStarted') }));
+  }
+
+  /** Save this backend and (re)start sharing it — re-runs its health gate. */
+  async function saveStart(c: Card) {
+    if (hasInvalidVersionPrefix(c)) return;
+    if (newIds.has(c.id)) {
+      await addDraft(c);
+      return;
+    }
+    const started: Card = { ...c, enabled: true };
+    const next = cards.map((x) => (x.id === c.id ? started : x));
+    setCards(next);
+    persist(next, newIds);
+    const s = await control({ action: 'updateBackend', backend: toInput(started) });
+    onChanged(s);
+    setMsgById((p) => ({
+      ...p,
+      [c.id]: s.check && !s.check.ok ? failMsg(s.check.reason) : t('producer.savedStarted'),
+    }));
+  }
+
+  /** Stop sharing just this backend (config kept; takes it off the air). */
+  async function stopOne(c: Card) {
+    const stopped: Card = { ...c, enabled: false };
+    const next = cards.map((x) => (x.id === c.id ? stopped : x));
+    setCards(next);
+    persist(next, newIds);
+    onChanged(await control({ action: 'setBackendEnabled', id: c.id, enabled: false }));
+    setMsgById((p) => ({ ...p, [c.id]: t('producer.stopped') }));
+  }
+
+  async function removeCard(id: string) {
+    const isDraft = newIds.has(id);
+    const nextCards = cards.filter((c) => c.id !== id);
+    const drafts = new Set(newIds);
+    drafts.delete(id);
+    setCards(nextCards);
+    setNewIds(drafts);
+    if (selectedId === id) setSelectedId(nextCards[0]?.id ?? null);
+    persist(nextCards, drafts);
+    if (!isDraft) onChanged(await control({ action: 'removeBackend', id }));
+  }
+
+  /** Start or stop every saved backend at once (drafts are untouched). */
+  async function setAllEnabled(enabled: boolean) {
+    const next = cards.map((c) => (newIds.has(c.id) ? c : { ...c, enabled }));
+    setCards(next);
+    persist(next, newIds);
+    const backends = next.filter((c) => !newIds.has(c.id)).map((c) => toInput({ ...c, enabled }));
+    onChanged(await control({ action: 'setBackends', backends }));
+  }
+
+  function requestShare(action: () => Promise<void>): void {
+    if (window.localStorage.getItem(DISCLAIMER_ACCEPTED_KEY) === 'true') {
+      void action();
+      return;
+    }
+    pendingShareRef.current = action;
+    setShowDisclaimer(true);
+  }
+
+  function viewDisclaimer(): void {
+    pendingShareRef.current = null;
+    setShowDisclaimer(true);
+  }
+
+  function closeDisclaimer(): void {
+    pendingShareRef.current = null;
+    setShowDisclaimer(false);
+  }
+
+  function acceptDisclaimer(): void {
+    window.localStorage.setItem(DISCLAIMER_ACCEPTED_KEY, 'true');
+    const pendingShare = pendingShareRef.current;
+    pendingShareRef.current = null;
+    setShowDisclaimer(false);
+    if (pendingShare) void pendingShare();
+  }
+
+  const selected = cards.find((c) => c.id === selectedId) ?? null;
+  // Start/stop state is read STRICTLY from the live producer status (the running
+  // daemon is the source of truth). A backend missing from status — not started,
+  // stopped, or the transport is down — counts as not sharing. We don't fall back
+  // to the localStorage `enabled`, which can be stale (e.g. after a disconnect).
+  const enabledOf = (id: string): boolean =>
+    status.producer.backends.find((b) => b.id === id)?.enabled ?? false;
+  const anyEnabled = status.producer.backends.some((b) => b.enabled);
+  const anySaved = cards.some((c) => !newIds.has(c.id));
+
+  function labelFor(c: Card, i: number): string {
+    const model = parseModels(c.modelsText)[0] ?? '—';
+    return `[${i + 1}] ${c.protocol}/${model}`;
+  }
+
+  function healthTitle(h?: { ok: boolean; reason?: string }): string {
+    if (!h) return t('producer.healthReasonUnknown');
+    return h.ok
+      ? t('producer.healthOk')
+      : t('producer.healthFailed', { reason: h.reason ?? t('producer.healthReasonUnknown') });
+  }
+
+  return (
+    <div>
+      <div className="card">
+        <h2>{t('producer.backends')}</h2>
+        <div className={styles.layout}>
+          {/* Left sidebar: backend list + add button at the top. */}
+          <div className={styles.sidebar}>
+            <button className={styles.fullWidth} onClick={addNew}>
+              ＋ {t('producer.addBackend')}
+            </button>
+            <div className={styles.backendList}>
+              {cards.length === 0 && <p className="muted small">{t('producer.noBackends')}</p>}
+              {cards.map((c, i) => {
+                const bh = status.producer.backends.find((b) => b.id === c.id);
+                const isDraft = newIds.has(c.id);
+                const enabled = bh?.enabled ?? false; // strictly from live status
+                const registered = status.producer.registered && !!bh?.advertised;
+                const health = bh?.lastHealth;
+                const healthClass = health ? (health.ok ? styles.ok : styles.error) : styles.unknown;
+                const statusClass =
+                  isDraft || !enabled
+                    ? styles.unknown
+                    : registered && health?.ok
+                      ? styles.ok
+                      : styles.warning;
+                return (
+                  <div
+                    key={c.id}
+                    className={`${styles.backendItem} ${selectedId === c.id ? styles.active : ''}`}
+                    onClick={() => setSelectedId(c.id)}
+                  >
+                    <div className={styles.backendItemBody}>
+                      <div className={styles.backendItemName} title={labelFor(c, i)}>
+                        {labelFor(c, i)}
+                      </div>
+                      <div className={styles.backendStatus}>
+                        <span className={styles.statusRow}>
+                          <span className={styles.statusLabel}>{t('producer.status')}</span>
+                          <span className={`${styles.healthDot} ${statusClass}`} />
+                        </span>
+                        <span className={styles.statusRow}>
+                          <span className={styles.statusLabel}>{t('producer.running')}</span>
+                          <span className={`${styles.healthDot} ${enabled ? styles.ok : styles.unknown}`} />
+                        </span>
+                        <span className={styles.statusRow}>
+                          <span className={styles.statusLabel}>{t('producer.registered')}</span>
+                          <span className={`${styles.healthDot} ${registered ? styles.ok : styles.unknown}`} />
+                        </span>
+                        <span className={styles.statusRow}>
+                          <span className={styles.statusLabel}>{t('producer.health')}</span>
+                          <span className={`${styles.healthDot} ${healthClass}`} title={healthTitle(health)} />
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.trash}
+                      aria-label={t('producer.removeBackend')}
+                      title={t('producer.removeBackend')}
+                      disabled={enabled}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void removeCard(c.id);
+                      }}
+                    >
+                      🗑
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            {anySaved &&
+              (anyEnabled ? (
+                <div className={styles.sidebarAction}>
+                  <button
+                    className={`danger ${styles.stopAll}`}
+                    onClick={() => setAllEnabled(false)}
+                    disabled={!connected}
+                  >
+                    {t('producer.stopAll')}
+                  </button>
+                  <button type="button" className={styles.disclaimerLink} onClick={viewDisclaimer}>
+                    {t('producer.disclaimerLink')}
+                  </button>
+                </div>
+              ) : (
+                <div className={styles.sidebarAction}>
+                  <button
+                    className={styles.stopAll}
+                    onClick={() => requestShare(() => setAllEnabled(true))}
+                    disabled={!connected}
+                  >
+                    {t('producer.startAll')}
+                  </button>
+                  <button type="button" className={styles.disclaimerLink} onClick={viewDisclaimer}>
+                    {t('producer.disclaimerLink')}
+                  </button>
+                </div>
+              ))}
+          </div>
+
+          {/* Right detail panel: edit the selected backend. */}
+          <div className={styles.detail}>
+            {selected ? (
+              <>
+                <BackendFields
+                  value={selected}
+                  disabled={enabledOf(selected.id)}
+                  onChange={(patch) => patchCard(selected.id, patch)}
+                />
+                <div className="actions">
+                  {enabledOf(selected.id) ? (
+                    <button className="danger" onClick={() => stopOne(selected)} disabled={!connected}>
+                      {t('producer.stop')}
+                    </button>
+                  ) : (
+                    <button onClick={() => requestShare(() => saveStart(selected))} disabled={!connected}>
+                      {t('producer.saveStart')}
+                    </button>
+                  )}
+                  <button type="button" className={styles.disclaimerLink} onClick={viewDisclaimer}>
+                    {t('producer.disclaimerLink')}
+                  </button>
+                </div>
+                {msgById[selected.id] && <div className="hint">{msgById[selected.id]}</div>}
+              </>
+            ) : (
+              <p className="muted">{t('producer.selectBackend')}</p>
+            )}
+          </div>
+        </div>
+
+        {!connected && <div className="hint">{t('common.waitingSignaling')}</div>}
+        {notice && <div className="hint">{notice}</div>}
+      </div>
+
+      <div className="card">
+        <div className="hint">{t('producer.healthHint')}</div>
+      </div>
+
+      {showDisclaimer && (
+        <SharingDisclaimerModal
+          requiresAcceptance={pendingShareRef.current !== null}
+          onAccept={acceptDisclaimer}
+          onClose={closeDisclaimer}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Shared editable fields for a backend (used by the detail panel). */
+function BackendFields({
+  value,
+  disabled = false,
+  onChange,
+}: {
+  value: Draft;
+  disabled?: boolean;
+  onChange: (patch: Partial<Draft>) => void;
+}) {
+  const { t } = useI18n();
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  return (
+    <>
+      <div className="row">
+        <div>
+          <label className={styles.labelWithAction}>
+            {t('producer.hostBaseUrl')}
+            <button type="button" className={styles.linkButton} onClick={() => setShowGuide(true)} disabled={disabled}>
+              {t('producer.baseUrlGuide')}
+            </button>
+          </label>
+          <input value={value.baseUrl} disabled={disabled} onChange={(e) => onChange({ baseUrl: e.target.value })} />
+        </div>
+        <div>
+          <label>{t('producer.protocolPrefix')}</label>
+          <select
+            value={value.protocol}
+            disabled={disabled}
+            onChange={(e) => {
+              const protocol = e.target.value;
+              const previousDefault = defaultVersionPrefix(value.protocol);
+              onChange({
+                protocol,
+                supportedTools: normalizeSupportedTools(value.supportedTools, protocol),
+                versionPrefix:
+                  value.versionPrefix === previousDefault
+                    ? defaultVersionPrefix(protocol)
+                    : value.versionPrefix,
+              });
+            }}
+          >
+            <option value="openai">openai</option>
+            <option value="openai-response">openai-response</option>
+            <option value="gemini">gemini</option>
+            <option value="anthropic">anthropic</option>
+            <option value="azure-openai">azure-openai</option>
+            <option value="ollama">ollama</option>
+          </select>
+        </div>
+      </div>
+
+      <label>{t('producer.versionPrefix')}</label>
+      <input
+        value={value.versionPrefix}
+        disabled={disabled}
+        onChange={(e) => onChange({ versionPrefix: e.target.value })}
+        onBlur={(e) => {
+          const normalized = normalizeVersionPrefix(e.target.value);
+          if (normalized) onChange({ versionPrefix: normalized });
+        }}
+        placeholder={defaultVersionPrefix(value.protocol)}
+      />
+      <div className="hint">{t('producer.versionPrefixHint')}</div>
+
+      {value.protocol === 'azure-openai' && (
+        <div>
+          <label>{t('producer.apiVersion')}</label>
+          <input
+            value={value.apiVersion}
+            disabled={disabled}
+            onChange={(e) => onChange({ apiVersion: e.target.value })}
+            placeholder="2024-10-21"
+          />
+        </div>
+      )}
+
+      <label>{t('producer.supportedTools')}</label>
+      <div className={styles.toolList}>
+        {TOOL_IDS.filter((tool) => toolsForProtocol(value.protocol).includes(tool)).map((tool) => {
+          const checked = value.supportedTools.includes(tool);
+          return (
+            <label key={tool} className={styles.toolOption}>
+              <input
+                type="checkbox"
+                disabled={disabled || (checked && value.supportedTools.length === 1)}
+                checked={checked}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...value.supportedTools, tool]
+                    : value.supportedTools.filter((item) => item !== tool);
+                  onChange({ supportedTools: normalizeSupportedTools(next, value.protocol) });
+                }}
+              />
+              {tool}
+            </label>
+          );
+        })}
+      </div>
+      <div className="hint">{t('producer.supportedToolsHint')}</div>
+
+      <div className="actions">
+        <button
+          className="secondary"
+          disabled={disabled}
+          onClick={() => onChange({ baseUrl: value.baseUrl === LOCAL_PRESET ? ONLINE_PRESET : LOCAL_PRESET })}
+        >
+          {t('producer.togglePreset')}
+        </button>
+      </div>
+
+      <label>{t('producer.apiKey')}</label>
+      <div className={styles.secretField}>
+        <input
+          type={showApiKey ? 'text' : 'password'}
+          value={value.apiKey}
+          disabled={disabled}
+          onChange={(e) => onChange({ apiKey: e.target.value })}
+          placeholder={t('producer.apiKeyPlaceholder')}
+        />
+        <button
+          type="button"
+          className={styles.secretToggle}
+          disabled={disabled}
+          onClick={() => setShowApiKey((v) => !v)}
+          aria-label={showApiKey ? t('producer.hideApiKey') : t('producer.showApiKey')}
+          title={showApiKey ? t('producer.hide') : t('producer.show')}
+        >
+          {showApiKey ? '🙈' : '👁'}
+        </button>
+      </div>
+
+      <label>{t('producer.exposedModels')}</label>
+      <textarea
+        rows={2}
+        value={value.modelsText}
+        disabled={disabled}
+        onChange={(e) => onChange({ modelsText: e.target.value })}
+        placeholder="qwen2.5:7b, llama3.1:8b"
+      />
+
+      <label className={styles.labelWithHelp}>
+        {t('producer.costMultiplier')}
+        <span className={styles.helpDot} title={t('producer.costMultiplierHelp')} aria-label={t('producer.costMultiplierHelp')}>
+          ?
+        </span>
+      </label>
+      <input
+        type="number"
+        disabled={disabled}
+        min="0.01"
+        max="100"
+        step="0.01"
+        value={value.costMultiplier}
+        onChange={(e) => onChange({ costMultiplier: normalizeCostMultiplier(e.target.value) })}
+      />
+
+      <label>{t('producer.maxConcurrency')}</label>
+      <input
+        type="number"
+        disabled={disabled}
+        min="1"
+        step="1"
+        value={value.maxConcurrency}
+        onChange={(e) => onChange({ maxConcurrency: normalizeMaxConcurrency(e.target.value) })}
+      />
+
+      {showGuide && <BaseUrlGuideModal onClose={() => setShowGuide(false)} />}
+    </>
+  );
+}

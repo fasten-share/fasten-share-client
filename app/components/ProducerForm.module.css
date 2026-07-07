@@ -1,0 +1,233 @@
+.layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.sidebar {
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.backendList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.backendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.backendItem:hover,
+.backendItem.active {
+  border-color: var(--accent, #4c8bf5);
+}
+
+.backendItem.active {
+  background: var(--panel-2);
+}
+
+.backendItemBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.backendItemName {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.backendStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.statusLabel {
+  color: var(--muted);
+  min-width: 68px;
+}
+
+.healthDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ok {
+  background: #3fb950;
+}
+
+.error {
+  background: #f85149;
+}
+
+.warning {
+  background: #d29922;
+}
+
+.unknown {
+  background: var(--border);
+}
+
+.trash {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 14px;
+  opacity: 0.65;
+}
+
+.trash:hover {
+  opacity: 1;
+}
+
+.stopAll {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.sidebarAction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebarAction .stopAll {
+  flex: 1;
+  width: auto;
+}
+
+.disclaimerLink {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 2px 0;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.disclaimerLink:hover {
+  background: transparent;
+  color: var(--accent);
+}
+
+.detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.labelWithAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.labelWithHelp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.helpDot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: help;
+}
+
+.linkButton {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.linkButton:hover {
+  background: transparent;
+}
+
+.secretField {
+  position: relative;
+}
+
+.secretField input {
+  padding-right: 40px;
+}
+
+.secretToggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.secretToggle:hover {
+  background: transparent;
+}
+.toolList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.toolOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+
+.toolOption input {
+  width: auto;
+  margin: 0;
+}

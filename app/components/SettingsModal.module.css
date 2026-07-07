@@ -1,0 +1,33 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.languageSwitch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.languageSwitch button {
+  padding: 3px 8px;
+  font-size: 12px;
+  border: 0;
+  background: var(--panel-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.languageSwitch button.active {
+  background: var(--accent);
+  color: #fff;
+}

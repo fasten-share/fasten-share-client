@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md
+npm-debug.log*

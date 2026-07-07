@@ -1,0 +1,92 @@
+.modal {
+  width: min(920px, 96vw);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.head p {
+  margin: 0;
+}
+
+.shareCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(43, 212, 160, 0.38);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(43, 212, 160, 0.12), rgba(79, 140, 255, 0.1));
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.shareCard code {
+  display: block;
+  margin-top: 6px;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.section {
+  margin-top: 18px;
+}
+
+.section h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.tableWrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table th {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.02);
+  font-weight: 600;
+}
+
+.table code {
+  font-family: ui-monospace, monospace;
+  color: var(--accent-2);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+@media (max-width: 720px) {
+  .head,
+  .shareCard {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

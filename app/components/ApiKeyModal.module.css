@@ -1,0 +1,116 @@
+.modal {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.createRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.createRow label {
+  display: grid;
+  gap: 6px;
+}
+
+.freezeRules {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.freezeRules strong {
+  color: var(--text);
+}
+
+.freezeRules ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.keyList {
+  display: grid;
+  gap: 12px;
+  padding: 4px;
+  max-height: 52vh;
+  overflow: auto;
+}
+
+.keyRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(220px, 1.6fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.keyMeta {
+  min-width: 0;
+}
+
+.keyName {
+  display: block;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.frozenBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border: 1px solid var(--danger, #c43c3c);
+  border-radius: 999px;
+  color: var(--danger, #c43c3c);
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: 1px;
+}
+
+.keyDate {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.keyValue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.empty {
+  padding: 18px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .keyRow {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+  }
+}
