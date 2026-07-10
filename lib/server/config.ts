@@ -15,9 +15,10 @@ import { versionPrefixOrDefault } from '../version-prefix';
 
 const DATA_DIR = process.env.FS_DATA_DIR || join(homedir(), '.fasten-share');
 const CONFIG_PATH = join(DATA_DIR, 'config.json');
+const SERVER_URL = 'https://node.fastenshare.com';
 
 const defaults: NodeConfig = {
-  serverUrl: process.env.FS_SERVER_HTTP_URL || 'http://localhost:8080',
+  serverUrl: SERVER_URL,
   producerIds: {},
   producerIdsServerIssued: true,
   backends: [],

@@ -56,8 +56,7 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ error: 'invalid consumer API key' }, { status: 400 });
     }
     const encodedModel = Buffer.from(model, 'utf8').toString('base64url');
-    const serverBase = process.env.FS_SERVER_HTTP_URL || 'http://localhost:8080';
-    const routeBase = `${serverBase.replace(/\/+$/, '')}/api/inference/${protocol}/${encodedModel}/${peerId}`;
+    const routeBase = `https://node.fastenshare.com/api/inference/${protocol}/${encodedModel}/${peerId}`;
     const baseUrl = toolEndpoint(routeBase, versionPrefix, body.tool, protocol);
     return Response.json(configureTool({ tool: body.tool, protocol, model, baseUrl }, apiKey));
   } catch (error) {

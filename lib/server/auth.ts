@@ -1,4 +1,4 @@
-const SERVER_BASE = process.env.FS_SERVER_HTTP_URL || 'http://localhost:8080';
+const SERVER_BASE = 'https://node.fastenshare.com';
 
 export function readBearerToken(req: Request): string | null {
   const header = req.headers.get('authorization');
