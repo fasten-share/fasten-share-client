@@ -13,14 +13,13 @@
  * deregister entirely.
  */
 import { Emitter } from '../emitter';
-import type { BackendConfig, BackendStatus, Offering, ProducerStatus } from './types';
+import type { BackendConfig, BackendStatus, ProducerStatus } from './types';
 import { sanitizeHeaders } from './headers';
 import { adapterFor } from './protocols';
-import { normalizeSupportedTools } from '../tool-support';
 import { normalizeCostMultiplier } from '../cost';
 import { normalizeMaxConcurrency } from '../concurrency';
-import { versionPrefixOrDefault } from '../version-prefix';
 import { ProducerConnection, type ProducerEvent } from './producer-connection';
+import { buildAdvertisedOfferings, joinUrl, probeHealth, type HealthResult } from './producer-health';
 
 const HEARTBEAT_MS = 15_000;
 const HEALTH_MS = 30_000;
@@ -32,46 +31,13 @@ const MAX_CONCURRENCY_MESSAGE = 'This producer node has reached its maximum conc
  * preserved exactly apart from ensuring one boundary slash; version segments
  * are never removed or de-duplicated.
  */
-export function joinUrl(baseUrl: string, path: string): string {
-  const base = baseUrl.replace(/\/+$/, '');
-  const p = path.startsWith('/') ? path : '/' + path;
-  return base + p;
-}
-
-function joinVersionPath(versionPrefix: string, endpointPath: string): string {
-  const prefix = versionPrefix === '/' ? '' : versionPrefix.replace(/\/+$/, '');
-  const endpoint = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
-  return `${prefix}${endpoint}`;
-}
-
 type Events = {
   status: (s: ProducerStatus) => void;
   autodown: (reason: string) => void;
 };
 
-export type HealthResult = { ok: boolean; reason?: string };
-
-/**
- * Probe a backend's availability without registering anything. Shared by the
- * per-backend pre-share gate (core add/update) and the daemon's periodic check.
- */
-export async function probeHealth(cfg: BackendConfig): Promise<HealthResult> {
-  try {
-    const { path, headers, body } = adapterFor(cfg.protocol).health(cfg);
-    const versionPrefix = versionPrefixOrDefault(cfg.versionPrefix, cfg.protocol);
-    const res = await fetch(joinUrl(cfg.baseUrl, joinVersionPath(versionPrefix, path)), {
-      method: 'POST',
-      headers,
-      body,
-    });
-    if (res.status === 401 || res.status === 403) return { ok: false, reason: 'AUTH' };
-    if (res.status === 402 || res.status === 429) return { ok: false, reason: 'QUOTA' };
-    if (!res.ok) return { ok: false, reason: 'HTTP' };
-    return { ok: true };
-  } catch {
-    return { ok: false, reason: 'NETWORK' };
-  }
-}
+export { joinUrl, probeHealth } from './producer-health';
+export type { HealthResult } from './producer-health';
 
 export class ProducerDaemon extends Emitter<Events> {
   private healthTimer?: ReturnType<typeof setInterval>;
@@ -236,54 +202,13 @@ export class ProducerDaemon extends Emitter<Events> {
   /* ------------------------------- registration ----------------------------- */
 
   /** Healthy backends grouped by protocol; same-protocol models are unioned. */
-  private advertisedOfferings(): Offering[] {
-    const byProto = new Map<string, {
-      models: string[];
-      costMultipliers: Record<string, number>;
-      supportedTools: Record<string, ReturnType<typeof normalizeSupportedTools>>;
-      versionPrefixes: Record<string, string>;
-    }>();
-    for (const b of this.backends.values()) {
-      if (b.enabled === false) continue;
-      if (this.advertise.get(b.id) !== true) continue;
-      const entry = byProto.get(b.protocol) ?? {
-        models: [],
-        costMultipliers: {},
-        supportedTools: {},
-        versionPrefixes: {},
-      };
-      const costMultiplier = normalizeCostMultiplier(b.costMultiplier);
-      const tools = normalizeSupportedTools(b.supportedTools, b.protocol);
-      for (const m of b.models) {
-        if (!entry.models.includes(m)) entry.models.push(m);
-        entry.costMultipliers[m] ??= costMultiplier;
-        entry.supportedTools[m] = normalizeSupportedTools(
-          [...(entry.supportedTools[m] ?? []), ...tools],
-          b.protocol,
-        );
-        entry.versionPrefixes[m] ??= versionPrefixOrDefault(b.versionPrefix, b.protocol);
-      }
-      byProto.set(b.protocol, entry);
-    }
-    return [...byProto].map(([
-      protocol,
-      { models, costMultipliers, supportedTools, versionPrefixes },
-    ]) => ({
-      protocol,
-      models,
-      costMultipliers,
-      supportedTools,
-      versionPrefixes,
-    }));
-  }
-
   /** Reconcile the advertised offerings with the server registration. */
   private syncRegistration(): void {
     if (!this.running) {
       this.emit('status', this.status());
       return;
     }
-    const offerings = this.advertisedOfferings();
+    const offerings = buildAdvertisedOfferings(this.backends.values(), this.advertise);
     const sig = JSON.stringify(offerings);
     if (offerings.length === 0) {
       if (this.registered) this.connection.deregister('all-unhealthy');
