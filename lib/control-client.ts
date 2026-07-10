@@ -58,7 +58,7 @@ export interface BackendInput {
 }
 
 type Action =
-  | { action: 'setSignalUrl'; url: string }
+  | { action: 'setSignalUrl' }
   | { action: 'addBackend'; backend: BackendInput }
   | { action: 'updateBackend'; backend: BackendInput }
   | { action: 'removeBackend'; id: string }

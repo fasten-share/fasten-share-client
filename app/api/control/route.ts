@@ -48,7 +48,7 @@ export async function POST(req: Request): Promise<Response> {
 
   switch (body.action) {
     case 'setSignalUrl':
-      core.setSignalUrl(String(body.url ?? ''));
+      core.setSignalUrl();
       break;
     case 'addBackend': {
       if (!body.backend) return Response.json({ error: 'missing backend' }, { status: 400 });

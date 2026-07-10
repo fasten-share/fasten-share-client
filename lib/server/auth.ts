@@ -1,4 +1,4 @@
-const SERVER_BASE = 'https://node.fastenshare.com';
+import { SERVICE_URL } from './service-url';
 
 export function readBearerToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -21,7 +21,7 @@ export async function requireValidAccessToken(req: Request): Promise<Response | 
 async function validateAccessToken(token: string): Promise<Response | null> {
   let upstream: globalThis.Response;
   try {
-    upstream = await fetch(new URL('/api/auth/me', SERVER_BASE), {
+    upstream = await fetch(new URL('/api/auth/me', SERVICE_URL), {
       headers: bearerHeaders(token),
       cache: 'no-store',
     });
@@ -42,7 +42,7 @@ async function validateAccessToken(token: string): Promise<Response | null> {
 export async function proxyServer(path: string, init: RequestInit): Promise<Response> {
   let upstream: globalThis.Response;
   try {
-    upstream = await fetch(new URL(path, SERVER_BASE), {
+    upstream = await fetch(new URL(path, SERVICE_URL), {
       ...init,
       cache: 'no-store',
     });

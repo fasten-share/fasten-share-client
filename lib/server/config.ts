@@ -12,18 +12,10 @@ import { normalizeCostMultiplier } from '../cost';
 import { normalizeMaxConcurrency } from '../concurrency';
 import { normalizeSupportedTools } from '../tool-support';
 import { versionPrefixOrDefault } from '../version-prefix';
+import { SERVICE_URL } from './service-url';
 
 const DATA_DIR = process.env.FS_DATA_DIR || join(homedir(), '.fasten-share');
 const CONFIG_PATH = join(DATA_DIR, 'config.json');
-const SERVER_URL = 'https://node.fastenshare.com';
-
-const defaults: NodeConfig = {
-  serverUrl: SERVER_URL,
-  producerIds: {},
-  producerIdsServerIssued: true,
-  backends: [],
-};
-
 /** Ensure a backend has a stable id (older configs / env seeds may lack one). */
 function withId(b: Omit<BackendConfig, 'id'> & { id?: string }): BackendConfig {
   return {
@@ -91,7 +83,8 @@ function read(): NodeConfig {
   }
 
   const cfg: NodeConfig = {
-    serverUrl: stored.serverUrl ?? defaults.serverUrl,
+    // Service selection is no longer configurable; migrate persisted legacy URLs.
+    serverUrl: SERVICE_URL,
     // IDs from older clients were locally generated and are deliberately discarded.
     producerIds: stored.producerIdsServerIssued ? (stored.producerIds ?? {}) : {},
     producerIdsServerIssued: true,
@@ -105,7 +98,7 @@ function read(): NodeConfig {
 
   // Persist the migrated/seeded shape so the legacy `backend` key is dropped and
   // ids are stable across restarts.
-  if (!Array.isArray(stored.backends)) write(cfg);
+  if (!Array.isArray(stored.backends) || stored.serverUrl !== SERVICE_URL) write(cfg);
   return cfg;
 }
 
@@ -124,9 +117,9 @@ export const config = {
   all(): NodeConfig {
     return (cache ??= read());
   },
-  setServerUrl(url: string): void {
+  setServerUrl(): void {
     const c = this.all();
-    c.serverUrl = url;
+    c.serverUrl = SERVICE_URL;
     write(c);
   },
   setOwnedBackends(userId: string, backends: BackendConfig[]): void {

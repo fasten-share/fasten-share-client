@@ -1,4 +1,5 @@
 import { requireValidAccessToken } from '@/lib/server/auth';
+import { SERVICE_URL } from '@/lib/server/service-url';
 import { configureTool, inspectToolConfig } from '@/lib/server/tool-config';
 import { isToolId } from '@/lib/tool-support';
 import { normalizeVersionPrefix } from '@/lib/version-prefix';
@@ -56,7 +57,7 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ error: 'invalid consumer API key' }, { status: 400 });
     }
     const encodedModel = Buffer.from(model, 'utf8').toString('base64url');
-    const routeBase = `https://node.fastenshare.com/api/inference/${protocol}/${encodedModel}/${peerId}`;
+    const routeBase = `${SERVICE_URL}/api/inference/${protocol}/${encodedModel}/${peerId}`;
     const baseUrl = toolEndpoint(routeBase, versionPrefix, body.tool, protocol);
     return Response.json(configureTool({ tool: body.tool, protocol, model, baseUrl }, apiKey));
   } catch (error) {

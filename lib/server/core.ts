@@ -8,6 +8,7 @@ import { normalizeSupportedTools } from '../tool-support';
 import { normalizeCostMultiplier } from '../cost';
 import { normalizeMaxConcurrency } from '../concurrency';
 import { versionPrefixOrDefault } from '../version-prefix';
+import { SERVICE_URL } from './service-url';
 
 function producerWsUrl(serverUrl: string): string {
   const url = new URL(serverUrl);
@@ -145,10 +146,9 @@ export class Core {
     return ((await response.json()) as { candidates?: Candidate[] }).candidates ?? [];
   }
 
-  setSignalUrl(url: string): void {
-    const normalized = url.replace(/\/+$/, '');
-    config.setServerUrl(normalized);
-    this.connection.setUrl(producerWsUrl(normalized));
+  setSignalUrl(): void {
+    config.setServerUrl();
+    this.connection.setUrl(producerWsUrl(SERVICE_URL));
   }
 
   private normalizeBackend(backend: BackendConfig): BackendConfig {
