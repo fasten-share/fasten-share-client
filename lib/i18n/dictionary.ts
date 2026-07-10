@@ -267,6 +267,8 @@ const en = {
     'Defaults by protocol. Consumers must include this prefix after peerId; it is forwarded upstream unchanged.',
   'producer.versionPrefixInvalid':
     'Use path segments only, such as /, /v1, or /api/v1. Query strings, fragments, empty segments, and . or .. are not allowed.',
+  'producer.duplicateProtocolModel':
+    'This node already publishes {protocol}/{model}. A protocol + model can be published only once.',
   'producer.apiVersion': 'API version (Azure; used for the health check)',
   'producer.togglePreset': 'Toggle local/online preset',
   'producer.apiKey': 'API key (kept on this machine; injected into Authorization)',
@@ -561,6 +563,8 @@ const zh: Record<keyof typeof en, string> = {
     '按协议提供默认值。消费者需在 peerId 后使用此前缀，生产者会将其原样转发到上游。',
   'producer.versionPrefixInvalid':
     '请仅填写路径段，例如 /、/v1 或 /api/v1；不能包含查询参数、片段、空路径段、. 或 ..。',
+  'producer.duplicateProtocolModel':
+    '当前节点已发布 {protocol}/{model}；相同的协议 + 模型只允许发布一次。',
   'producer.apiVersion': 'API 版本（Azure；用于健康检查）',
   'producer.togglePreset': '切换本地/在线预设',
   'producer.apiKey': 'API key（保存在本机；注入到 Authorization）',

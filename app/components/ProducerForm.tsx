@@ -155,6 +155,24 @@ export function ProducerForm({
     return true;
   }
 
+  function hasDuplicateOffering(c: Card, candidates = cards): boolean {
+    const protocol = c.protocol.trim();
+    const otherOfferings = new Set(
+      candidates
+        .filter((other) => other.id !== c.id && other.protocol.trim() === protocol)
+        .flatMap((other) => parseModels(other.modelsText)),
+    );
+    const duplicate = parseModels(c.modelsText).find((model, index, models) =>
+      otherOfferings.has(model) || models.indexOf(model) !== index,
+    );
+    if (!duplicate) return false;
+    setMsgById((p) => ({
+      ...p,
+      [c.id]: t('producer.duplicateProtocolModel', { protocol, model: duplicate }),
+    }));
+    return true;
+  }
+
   function addNew(): void {
     const card: Card = { ...emptyDraft(), id: newBackendId(), enabled: true };
     setCards((prev) => [...prev, card]);
@@ -164,7 +182,7 @@ export function ProducerForm({
   }
 
   async function addDraft(c: Card) {
-    if (hasInvalidVersionPrefix(c)) return;
+    if (hasInvalidVersionPrefix(c) || hasDuplicateOffering(c)) return;
     const s = await control({ action: 'addBackend', backend: toInput(c) });
     onChanged(s);
     if (s.check && !s.check.ok) {
@@ -180,7 +198,7 @@ export function ProducerForm({
 
   /** Save this backend and (re)start sharing it — re-runs its health gate. */
   async function saveStart(c: Card) {
-    if (hasInvalidVersionPrefix(c)) return;
+    if (hasInvalidVersionPrefix(c) || hasDuplicateOffering(c)) return;
     if (newIds.has(c.id)) {
       await addDraft(c);
       return;
@@ -221,6 +239,14 @@ export function ProducerForm({
 
   /** Start or stop every saved backend at once (drafts are untouched). */
   async function setAllEnabled(enabled: boolean) {
+    const savedCards = cards.filter((c) => !newIds.has(c.id));
+    if (enabled) {
+      const duplicate = savedCards.find((c) => hasDuplicateOffering(c, savedCards));
+      if (duplicate) {
+        setSelectedId(duplicate.id);
+        return;
+      }
+    }
     const next = cards.map((c) => (newIds.has(c.id) ? c : { ...c, enabled }));
     setCards(next);
     persist(next, newIds);

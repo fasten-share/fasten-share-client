@@ -16,6 +16,20 @@ function normalizeBackend(backend: BackendConfig): BackendConfig | undefined {
   return { ...backend, versionPrefix };
 }
 
+function duplicateOffering(backends: BackendConfig[]): string | undefined {
+  const seen = new Set<string>();
+  for (const backend of backends) {
+    const protocol = backend.protocol.trim();
+    for (const rawModel of backend.models) {
+      const model = rawModel.trim();
+      const key = `${protocol}\0${model}`;
+      if (seen.has(key)) return `${protocol}/${model}`;
+      seen.add(key);
+    }
+  }
+  return undefined;
+}
+
 export async function GET(req: Request): Promise<Response> {
   const authError = await requireValidAccessToken(req);
   if (authError) return authError;
@@ -56,6 +70,8 @@ export async function POST(req: Request): Promise<Response> {
       if (!body.backend) return Response.json({ error: 'missing backend' }, { status: 400 });
       const backend = normalizeBackend(body.backend);
       if (!backend) return Response.json({ error: 'invalid version prefix' }, { status: 400 });
+      const duplicate = duplicateOffering([...core.status().config.backends, backend]);
+      if (duplicate) return Response.json({ error: `duplicate protocol + model: ${duplicate}` }, { status: 400 });
       const check = await core.addBackend(backend);
       return Response.json({ ...core.status(), check });
     }
@@ -63,6 +79,9 @@ export async function POST(req: Request): Promise<Response> {
       if (!body.backend?.id) return Response.json({ error: 'missing backend id' }, { status: 400 });
       const backend = normalizeBackend(body.backend);
       if (!backend) return Response.json({ error: 'invalid version prefix' }, { status: 400 });
+      const existing = core.status().config.backends;
+      const duplicate = duplicateOffering(existing.map((item) => item.id === backend.id ? backend : item));
+      if (duplicate) return Response.json({ error: `duplicate protocol + model: ${duplicate}` }, { status: 400 });
       const check = await core.updateBackend(backend);
       return Response.json({ ...core.status(), check });
     }
@@ -97,6 +116,8 @@ export async function POST(req: Request): Promise<Response> {
         if (backends.some((backend) => !backend)) {
           return Response.json({ error: 'invalid version prefix' }, { status: 400 });
         }
+        const duplicate = duplicateOffering(backends as BackendConfig[]);
+        if (duplicate) return Response.json({ error: `duplicate protocol + model: ${duplicate}` }, { status: 400 });
         await core.setBackends(backends as BackendConfig[]);
       }
       break;
