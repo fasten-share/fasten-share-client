@@ -52,8 +52,8 @@ export class ProducerConnection extends Emitter<Events> {
     if (this.started) this.connect();
   }
 
-  register(authorization: string, offerings: Offering[]): void {
-    this.send({ type: 'register', protocolVersion: 3, authorization, offerings });
+  register(authorization: string, offerings: Offering[]): boolean {
+    return this.send({ type: 'register', protocolVersion: 3, authorization, offerings });
   }
 
   heartbeat(): void {
@@ -68,13 +68,18 @@ export class ProducerConnection extends Emitter<Events> {
     return this.send(value);
   }
 
-  respondChunk(requestId: string, chunk: Uint8Array): boolean {
-    if (this.ws?.readyState !== WebSocket.OPEN) return false;
-    if (this.ws.bufferedAmount > 1024 * 1024) return false;
-    this.ws.send(encodeBinaryFrame(BinaryFrameType.ResponseChunk, requestId, chunk), {
-      binary: true,
+  respondChunk(requestId: string, chunk: Uint8Array): Promise<boolean> {
+    const ws = this.ws;
+    if (ws?.readyState !== WebSocket.OPEN || ws.bufferedAmount > 1024 * 1024) {
+      return Promise.resolve(false);
+    }
+    return new Promise((resolve) => {
+      ws.send(encodeBinaryFrame(BinaryFrameType.ResponseChunk, requestId, chunk), {
+        binary: true,
+      }, (error) => {
+        resolve(!error && this.ws === ws && ws.readyState === WebSocket.OPEN);
+      });
     });
-    return true;
   }
 
   private send(value: Record<string, unknown>): boolean {

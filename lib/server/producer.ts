@@ -91,11 +91,10 @@ export class ProducerDaemon extends Emitter<Events> {
     controller: ReadableStreamDefaultController<Uint8Array>;
     abort: AbortController;
   }>();
+  private readonly requestListener = (event: ProducerEvent) => this.onRequestEvent(event);
+  private readonly closeListener = () => this.onSignalingClose();
 
-  constructor(private connection: ProducerConnection) {
-    super();
-    this.connection.on('request', (event) => this.onRequestEvent(event));
-  }
+  constructor(private connection: ProducerConnection) { super(); }
 
   status(): ProducerStatus {
     const backends: BackendStatus[] = [...this.backends.values()].map((b) => ({
@@ -113,6 +112,8 @@ export class ProducerDaemon extends Emitter<Events> {
   start(): void {
     if (this.running) return;
     this.running = true;
+    this.connection.on('request', this.requestListener);
+    this.connection.on('close', this.closeListener);
     this.heartbeatTimer = setInterval(() => this.heartbeat(), HEARTBEAT_MS);
     this.healthTimer = setInterval(() => void this.check(), HEALTH_MS);
     void this.check(); // probes every backend then (re)registers the healthy union
@@ -122,9 +123,12 @@ export class ProducerDaemon extends Emitter<Events> {
   stop(reason = 'manual'): void {
     if (!this.running) return;
     this.running = false;
+    this.connection.off('request', this.requestListener);
+    this.connection.off('close', this.closeListener);
     clearInterval(this.heartbeatTimer);
     clearInterval(this.healthTimer);
     if (this.registered) this.connection.deregister(reason);
+    this.abortInbound('producer stopped');
     this.registered = false;
     this.lastAdSig = '';
     this.emit('status', this.status());
@@ -147,6 +151,21 @@ export class ProducerDaemon extends Emitter<Events> {
     this.registered = false;
     this.lastAdSig = '';
     this.syncRegistration();
+  }
+
+  private onSignalingClose(): void {
+    if (!this.running) return;
+    this.registered = false;
+    this.lastAdSig = '';
+    this.abortInbound('server connection closed');
+    this.emit('status', this.status());
+  }
+
+  private abortInbound(reason: string): void {
+    for (const active of this.inbound.values()) {
+      active.abort.abort();
+      try { active.controller.error(new Error(reason)); } catch { /* already closed */ }
+    }
   }
 
   /* ----------------------------- backend control ---------------------------- */
@@ -275,9 +294,9 @@ export class ProducerDaemon extends Emitter<Events> {
       this.registered = false;
       this.lastAdSig = '';
     } else if (sig !== this.lastAdSig || !this.registered) {
-      this.connection.register(`Bearer ${this.accessToken}`, offerings);
-      this.registered = true;
-      this.lastAdSig = sig;
+      const sent = this.connection.register(`Bearer ${this.accessToken}`, offerings);
+      this.registered = sent;
+      this.lastAdSig = sent ? sig : '';
     }
     this.emit('status', this.status());
   }
@@ -344,11 +363,23 @@ export class ProducerDaemon extends Emitter<Events> {
 
   private onRequestEvent(event: ProducerEvent): void {
     if (event.type === 'request.start') {
-      void this.startRequest(event);
+      void this.startRequest(event).catch((error: unknown) => {
+        this.connection.respond({
+          type: 'response.error',
+          requestId: event.requestId,
+          data: {
+            message: error instanceof Error ? error.message : String(error),
+            code: 'UPSTREAM_ERROR',
+            status: 502,
+          },
+        });
+      });
     } else if (event.type === 'request.chunk' && event.chunk) {
-      this.inbound.get(event.requestId)?.controller.enqueue(event.chunk);
+      const active = this.inbound.get(event.requestId);
+      try { active?.controller.enqueue(event.chunk); } catch { /* late chunk */ }
     } else if (event.type === 'request.end') {
-      this.inbound.get(event.requestId)?.controller.close();
+      const active = this.inbound.get(event.requestId);
+      try { active?.controller.close(); } catch { /* duplicate end */ }
     } else if (event.type === 'request.cancel') {
       const active = this.inbound.get(event.requestId);
       active?.abort.abort();
@@ -414,7 +445,7 @@ export class ProducerDaemon extends Emitter<Events> {
           if (done) break;
           for (let off = 0; off < value.length; off += MAX_CHUNK_BYTES) {
             const slice = value.subarray(off, off + MAX_CHUNK_BYTES);
-            if (!this.connection.respondChunk(event.requestId, slice)) {
+            if (!await this.connection.respondChunk(event.requestId, slice)) {
               throw new Error('server connection not open');
             }
           }

@@ -76,14 +76,18 @@ export class Core {
       if (!this.activeUserId) {
         throw new Error('producer requires an authenticated account');
       }
-      this.producer = new ProducerDaemon(this.connection);
-      this.producer.setAccessToken(this.accessToken);
-      this.producer.on('status', (status) => {
+      const producer = new ProducerDaemon(this.connection);
+      this.producer = producer;
+      producer.setAccessToken(this.accessToken);
+      producer.on('status', (status) => {
+        if (this.producer !== producer) return;
         this.producerStatus = status;
         this.pushStatus();
       });
-      this.producer.on('autodown', (reason) => console.warn('[producer]', reason));
-      this.producer.start();
+      producer.on('autodown', (reason) => {
+        if (this.producer === producer) console.warn('[producer]', reason);
+      });
+      producer.start();
     }
     return this.producer;
   }
