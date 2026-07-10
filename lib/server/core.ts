@@ -132,18 +132,33 @@ export class Core {
     keyword: string,
     protocol: string,
     publisherUserIds?: string[],
-  ): Promise<Candidate[]> {
-    if (!this.accessToken) return [];
+    page = 1,
+    pageSize = 20,
+  ): Promise<{ candidates: Candidate[]; page: number; pageSize: number; total: number }> {
+    if (!this.accessToken) return { candidates: [], page, pageSize, total: 0 };
     const url = new URL('/api/producers', config.all().serverUrl);
     if (keyword) url.searchParams.set('keyword', keyword);
     if (protocol) url.searchParams.set('protocol', protocol);
     if (publisherUserIds?.length) url.searchParams.set('publisherUserIds', publisherUserIds.join(','));
+    url.searchParams.set('page', String(page));
+    url.searchParams.set('limit', String(pageSize));
     const response = await fetch(url, {
       headers: { authorization: `Bearer ${this.accessToken}` },
       cache: 'no-store',
     });
     if (!response.ok) throw new Error(`producer discovery failed (${response.status})`);
-    return ((await response.json()) as { candidates?: Candidate[] }).candidates ?? [];
+    const data = (await response.json()) as {
+      candidates?: Candidate[];
+      page?: number;
+      pageSize?: number;
+      total?: number;
+    };
+    return {
+      candidates: data.candidates ?? [],
+      page: data.page ?? page,
+      pageSize: data.pageSize ?? pageSize,
+      total: data.total ?? 0,
+    };
   }
 
   setSignalUrl(): void {

@@ -56,6 +56,8 @@ interface CurlTarget {
 
 type SearchScope = 'all' | 'following';
 
+const PAGE_SIZE = 20;
+
 /** base64url-encode a model id for the URL path segment (matches the consumer route). */
 function b64url(s: string): string {
   const bin = String.fromCharCode(...new TextEncoder().encode(s));
@@ -211,6 +213,8 @@ export function ConsumerInfo({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchTotal, setSearchTotal] = useState(0);
   const [copied, setCopied] = useState('');
   const [curlTarget, setCurlTarget] = useState<CurlTarget | null>(null);
   const [toolByTarget, setToolByTarget] = useState<Record<string, ToolId>>({});
@@ -223,6 +227,8 @@ export function ConsumerInfo({
   const [followedUsers, setFollowedUsers] = useState<FollowedUserDto[]>([]);
   const [followedRatings, setFollowedRatings] = useState<Map<string, number>>(new Map());
   const [selectedFollowingUserIds, setSelectedFollowingUserIds] = useState<string[]>([]);
+  const [followingPage, setFollowingPage] = useState(1);
+  const [followingTotal, setFollowingTotal] = useState(0);
   const [followError, setFollowError] = useState('');
   const [ratingDrafts, setRatingDrafts] = useState<Record<string, number>>({});
   const [ratingUserIds, setRatingUserIds] = useState<Set<string>>(new Set());
@@ -234,23 +240,31 @@ export function ConsumerInfo({
     apiKeys.find((apiKey) => apiKey.id === selectedApiKeyId && !apiKey.frozen)
     ?? apiKeys.find((apiKey) => !apiKey.frozen)
     ?? null;
+  const searchPageCount = Math.max(1, Math.ceil(searchTotal / PAGE_SIZE));
+  const followingPageCount = Math.max(1, Math.ceil(followingTotal / PAGE_SIZE));
 
-  const runSearch = useCallback(async (scope: SearchScope) => {
+  const runSearch = useCallback(async (scope: SearchScope, page = 1) => {
     const requestId = ++searchRequest.current;
     const kw = keyword.trim();
     const proto = protocol.trim();
     setSearching(true);
-    const currentFollowedUsers = await loadFollowingUsers().catch(() => []);
-    const currentFollowedUserIds = currentFollowedUsers.map((user) => user.userId);
+    // This lookup is only for follow badges in result rows; the visible picker
+    // remains paged independently below.
+    const currentFollowing = await loadFollowingUsers(1, 500)
+      .catch(() => ({ users: [], limit: 500, page: 1, pageSize: 500, total: 0 }));
+    const currentFollowedUsers = currentFollowing.users;
     const publisherUserIds =
       scope === 'following'
-        ? selectedFollowingUserIds.filter((userId) => currentFollowedUserIds.includes(userId))
+        ? selectedFollowingUserIds
         : undefined;
-    const list: Candidate[] = await discover(
+    const result = await discover(
       scope === 'following' ? '' : kw,
       scope === 'following' ? '' : proto,
       publisherUserIds,
-    ).catch(() => []);
+      page,
+      PAGE_SIZE,
+    ).catch(() => ({ candidates: [], page, pageSize: PAGE_SIZE, total: 0 }));
+    const list: Candidate[] = result.candidates;
     const userIds = [...new Set(list.map((c) => c.userId).filter(Boolean))];
     const [userSummaries, ratingStatuses] = await Promise.all([
       loadUserSummaries(userIds).catch(() => new Map()),
@@ -281,7 +295,7 @@ export function ConsumerInfo({
               0,
             callCount: userSummaries.get(c.userId)?.callCount ?? 0,
             costMultiplier: c.costMultipliers?.[m] ?? 1,
-            following: followedByUserId.has(c.userId),
+            following: scope === 'following' || followedByUserId.has(c.userId),
             rating: ratingStatuses.get(c.userId)?.rating ?? 0,
             rated: ratingStatuses.get(c.userId)?.rated ?? false,
             myRating: ratingStatuses.get(c.userId)?.myRating ?? null,
@@ -301,8 +315,8 @@ export function ConsumerInfo({
     }
     out.sort((a, b) => a.protocol.localeCompare(b.protocol) || a.model.localeCompare(b.model));
     if (requestId !== searchRequest.current) return;
-    setFollowedUsers(currentFollowedUsers);
-    if (publisherUserIds) setSelectedFollowingUserIds(publisherUserIds);
+    setSearchPage(result.page);
+    setSearchTotal(result.total);
     setRows(out);
     setExpanded(new Set());
     setRatingDrafts((current) => {
@@ -321,20 +335,20 @@ export function ConsumerInfo({
     setSearched(true);
   }, [keyword, protocol, discover, selectedFollowingUserIds]);
 
-  const openFollowingPicker = useCallback(async () => {
+  const openFollowingPicker = useCallback(async (page = 1) => {
     ++searchRequest.current;
     setSearching(true);
-    const users = await loadFollowingUsers().catch(() => []);
+    const result = await loadFollowingUsers(page, PAGE_SIZE)
+      .catch(() => ({ users: [], limit: 500, page, pageSize: PAGE_SIZE, total: 0 }));
+    const users = result.users;
     const ratings = await loadRatingStatuses(users.map((user) => user.userId))
       .catch(() => new Map<string, RatingStatusDto>());
-    const available = new Set(users.map((user) => user.userId));
     setFollowedUsers(users);
+    setFollowingPage(result.page);
+    setFollowingTotal(result.total);
     const ratingByUserId = new Map<string, number>();
     ratings.forEach((status, userId) => ratingByUserId.set(userId, status.rating));
     setFollowedRatings(ratingByUserId);
-    setSelectedFollowingUserIds((current) =>
-      current.filter((userId) => available.has(userId)),
-    );
     setRows([]);
     setExpanded(new Set());
     setSearched(false);
@@ -443,6 +457,7 @@ export function ConsumerInfo({
       const status = following ? await unfollowUser(publisherUserId) : await followUser(publisherUserId);
       if (!status.following) {
         setFollowedUsers((cur) => cur.filter((user) => user.userId !== status.publisherUserId));
+        setFollowingTotal((total) => Math.max(0, total - 1));
         setSelectedFollowingUserIds((cur) =>
           cur.filter((userId) => userId !== status.publisherUserId),
         );
@@ -569,7 +584,7 @@ export function ConsumerInfo({
             aria-selected={searchScope === 'all'}
             onClick={() => {
               setSearchScope('all');
-              void runSearch('all');
+              void runSearch('all', 1);
             }}
           >
             {t('consumer.allModels')}
@@ -580,7 +595,7 @@ export function ConsumerInfo({
             aria-selected={searchScope === 'following'}
             onClick={() => {
               setSearchScope('following');
-              void openFollowingPicker();
+              void openFollowingPicker(1);
             }}
           >
             {t('consumer.followingModels')}
@@ -612,7 +627,7 @@ export function ConsumerInfo({
               </div>
             </div>
             <div className="actions">
-              <button onClick={() => void runSearch('all')} disabled={!connected || searching}>
+              <button onClick={() => void runSearch('all', 1)} disabled={!connected || searching}>
                 {searching ? t('consumer.searching') : t('consumer.search')}
               </button>
             </div>
@@ -668,9 +683,36 @@ export function ConsumerInfo({
                 ))}
               </div>
             )}
+            {followingTotal > 0 && (
+              <div className={styles.pagination}>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={searching || followingPage <= 1}
+                  onClick={() => void openFollowingPicker(followingPage - 1)}
+                >
+                  {t('consumer.previousPage')}
+                </button>
+                <span>
+                  {t('consumer.pageInfo', {
+                    page: followingPage,
+                    pages: followingPageCount,
+                    total: followingTotal,
+                  })}
+                </span>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={searching || followingPage >= followingPageCount}
+                  onClick={() => void openFollowingPicker(followingPage + 1)}
+                >
+                  {t('consumer.nextPage')}
+                </button>
+              </div>
+            )}
             <div className="actions">
               <button
-                onClick={() => void runSearch('following')}
+                onClick={() => void runSearch('following', 1)}
                 disabled={!connected || searching || selectedFollowingUserIds.length === 0}
               >
                 {searching ? t('consumer.searching') : t('consumer.search')}
@@ -869,6 +911,27 @@ export function ConsumerInfo({
             </div>
           );
         })}
+        {searched && searchTotal > 0 && (
+          <div className={styles.pagination}>
+            <button
+              type="button"
+              className="secondary"
+              disabled={searching || searchPage <= 1}
+              onClick={() => void runSearch(searchScope, searchPage - 1)}
+            >
+              {t('consumer.previousPage')}
+            </button>
+            <span>{t('consumer.pageInfo', { page: searchPage, pages: searchPageCount, total: searchTotal })}</span>
+            <button
+              type="button"
+              className="secondary"
+              disabled={searching || searchPage >= searchPageCount}
+              onClick={() => void runSearch(searchScope, searchPage + 1)}
+            >
+              {t('consumer.nextPage')}
+            </button>
+          </div>
+        )}
         <div className="hint">
           {t('consumer.serviceLinkHint')}{' '}
           <code>{origin}/&lt;protocol&gt;/&lt;base64url(model)&gt;/&lt;peerId&gt;&lt;version-prefix&gt;</code>

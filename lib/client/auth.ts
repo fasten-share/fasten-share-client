@@ -57,6 +57,14 @@ export interface FollowedUserDto extends UserSummaryDto {
   followedAt: string;
 }
 
+export interface FollowingPageDto {
+  users: FollowedUserDto[];
+  limit: number;
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 export interface RatingStatusDto {
   publisherUserId: string;
   rating: number;
@@ -420,22 +428,29 @@ export async function loadFollowStatus(publisherUserId: string): Promise<FollowS
   return (await res.json()) as FollowStatusDto;
 }
 
-export async function loadFollowingUsers(): Promise<FollowedUserDto[]> {
+export async function loadFollowingUsers(page = 1, pageSize = 20): Promise<FollowingPageDto> {
   const token = getAccessToken();
-  if (!token) return [];
+  if (!token) return { users: [], limit: 500, page, pageSize, total: 0 };
 
-  const res = await fetch('/api/social/follows', {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  const res = await fetch(`/api/social/follows?${params}`, {
     cache: 'no-store',
     headers: { authorization: `Bearer ${token}` },
   });
   if (res.status === 401) {
     clearAccessToken();
-    return [];
+    return { users: [], limit: 500, page, pageSize, total: 0 };
   }
   if (!res.ok) throw await toAuthError(res);
 
-  const data = (await res.json()) as { users?: FollowedUserDto[] };
-  return data.users ?? [];
+  const data = (await res.json()) as Partial<FollowingPageDto>;
+  return {
+    users: data.users ?? [],
+    limit: data.limit ?? 500,
+    page: data.page ?? page,
+    pageSize: data.pageSize ?? pageSize,
+    total: data.total ?? 0,
+  };
 }
 
 export async function followUser(publisherUserId: string): Promise<FollowStatusDto> {

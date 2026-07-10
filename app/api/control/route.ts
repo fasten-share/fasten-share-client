@@ -39,6 +39,8 @@ export async function POST(req: Request): Promise<Response> {
     keyword?: string;
     protocol?: string;
     publisherUserIds?: unknown[];
+    page?: number;
+    pageSize?: number;
   };
   try {
     body = await req.json();
@@ -84,8 +86,10 @@ export async function POST(req: Request): Promise<Response> {
         String(body.keyword ?? ''),
         String(body.protocol ?? ''),
         publisherUserIds,
+        Number(body.page ?? 1),
+        Number(body.pageSize ?? 20),
       );
-      return Response.json({ ...core.status(), candidates: list });
+      return Response.json({ ...core.status(), ...list });
     }
     case 'setBackends':
       {

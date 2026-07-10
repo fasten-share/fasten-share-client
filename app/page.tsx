@@ -23,8 +23,7 @@ import { RechargeModal } from './components/RechargeModal';
 import { ReferralModal } from './components/ReferralModal';
 import { SettingsModal } from './components/SettingsModal';
 import { MessageBox } from './components/MessageBox';
-import type { ProducerBridgeHandle } from '@/lib/client/status-link';
-import type { Candidate } from '@/lib/server/types';
+import type { DiscoverFn, ProducerBridgeHandle } from '@/lib/client/status-link';
 import { useI18n } from '@/lib/i18n/context';
 import styles from './page.module.css';
 
@@ -237,9 +236,11 @@ export default function Home() {
   // The bridge (which owns the signaling socket) drives discovery for the
   // Consumer search. Stable wrapper so ConsumerInfo doesn't re-render needlessly.
   const bridgeRef = useRef<ProducerBridgeHandle | null>(null);
-  const discover = useCallback(
-    (keyword: string, protocol: string): Promise<Candidate[]> =>
-      bridgeRef.current ? bridgeRef.current.discover(keyword, protocol) : Promise.resolve([]),
+  const discover = useCallback<DiscoverFn>(
+    (keyword, protocol, publisherUserIds, page, pageSize) =>
+      bridgeRef.current
+        ? bridgeRef.current.discover(keyword, protocol, publisherUserIds, page, pageSize)
+        : Promise.resolve({ candidates: [], page: page ?? 1, pageSize: pageSize ?? 20, total: 0 }),
     [],
   );
 

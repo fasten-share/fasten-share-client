@@ -82,7 +82,10 @@ export async function discoverModels(
   keyword: string,
   protocol: string,
   publisherUserIds?: string[],
+  page = 1,
+  pageSize = 20,
 ): Promise<{
+  candidates: {
   peerId: string;
   models: string[];
   protocol: string;
@@ -92,15 +95,24 @@ export async function discoverModels(
   costMultipliers?: Record<string, number>;
   supportedTools?: Record<string, ToolId[]>;
   versionPrefixes?: Record<string, string>;
-}[]> {
+  }[];
+  page: number;
+  pageSize: number;
+  total: number;
+}> {
   const r = await fetch('/api/control', {
     method: 'POST',
     headers: { ...authHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify({ action: 'discover', keyword, protocol, publisherUserIds }),
+    body: JSON.stringify({ action: 'discover', keyword, protocol, publisherUserIds, page, pageSize }),
   });
   if (!r.ok) throw await toControlError(r);
   const data = await r.json();
-  return data.candidates ?? [];
+  return {
+    candidates: data.candidates ?? [],
+    page: data.page ?? page,
+    pageSize: data.pageSize ?? pageSize,
+    total: data.total ?? 0,
+  };
 }
 
 async function toControlError(res: Response): Promise<Error & { status: number }> {

@@ -14,7 +14,9 @@ export type DiscoverFn = (
   keyword: string,
   protocol: string,
   publisherUserIds?: string[],
-) => Promise<Candidate[]>;
+  page?: number,
+  pageSize?: number,
+) => Promise<{ candidates: Candidate[]; page: number; pageSize: number; total: number }>;
 
 /** Handle returned by the status link; `stop()` tears the channel down. */
 export interface ProducerBridgeHandle {
@@ -98,8 +100,10 @@ export function startStatusLink(
     keyword: string,
     protocol: string,
     publisherUserIds?: string[],
-  ): Promise<Candidate[]> =>
-    discoverModels(keyword, protocol, publisherUserIds) as Promise<Candidate[]>;
+    page?: number,
+    pageSize?: number,
+  ): ReturnType<DiscoverFn> =>
+    discoverModels(keyword, protocol, publisherUserIds, page, pageSize) as ReturnType<DiscoverFn>;
 
   function stop(): void {
     if (stopped) return;
