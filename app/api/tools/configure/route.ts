@@ -1,6 +1,13 @@
 import { requireValidAccessToken } from '@/lib/server/auth';
 import { SERVICE_URL } from '@/lib/server/service-url';
-import { configureTool, inspectToolConfig } from '@/lib/server/tool-config';
+import {
+  cleanupToolConfig,
+  configureTool,
+  inspectToolConfig,
+  listToolConfigBackups,
+  previewToolConfigRestore,
+  restoreToolConfig,
+} from '@/lib/server/tool-config';
 import { isToolId } from '@/lib/tool-support';
 import { normalizeVersionPrefix } from '@/lib/version-prefix';
 import { toolEndpoint } from '@/lib/tool-endpoint';
@@ -27,6 +34,7 @@ export async function POST(req: Request): Promise<Response> {
     peerId?: unknown;
     versionPrefix?: unknown;
     apiKey?: unknown;
+    backupId?: unknown;
   };
   try {
     body = await req.json();
@@ -38,7 +46,13 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    if (body.action === 'inspect') return Response.json(inspectToolConfig(body.tool));
+    if (body.action === 'inspect' || body.action === 'preview-cleanup' || body.action === 'verify') {
+      return Response.json(inspectToolConfig(body.tool));
+    }
+    if (body.action === 'cleanup') return Response.json(cleanupToolConfig(body.tool));
+    if (body.action === 'list-backups') return Response.json(listToolConfigBackups(body.tool));
+    if (body.action === 'preview-restore') return Response.json(previewToolConfigRestore(body.tool, body.backupId));
+    if (body.action === 'restore') return Response.json(restoreToolConfig(body.tool, body.backupId));
     if (body.action !== 'configure') {
       return Response.json({ error: 'unknown action' }, { status: 400 });
     }

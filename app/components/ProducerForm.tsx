@@ -155,11 +155,16 @@ export function ProducerForm({
     return true;
   }
 
-  function hasDuplicateOffering(c: Card, candidates = cards): boolean {
+  function hasDuplicateOffering(c: Card, candidates = cards, includeInactive = false): boolean {
     const protocol = c.protocol.trim();
     const otherOfferings = new Set(
       candidates
-        .filter((other) => other.id !== c.id && other.protocol.trim() === protocol)
+        .filter(
+          (other) =>
+            other.id !== c.id &&
+            other.protocol.trim() === protocol &&
+            (includeInactive || status.producer.backends.some((backend) => backend.id === other.id && backend.enabled)),
+        )
         .flatMap((other) => parseModels(other.modelsText)),
     );
     const duplicate = parseModels(c.modelsText).find((model, index, models) =>
@@ -241,11 +246,36 @@ export function ProducerForm({
   async function setAllEnabled(enabled: boolean) {
     const savedCards = cards.filter((c) => !newIds.has(c.id));
     if (enabled) {
-      const duplicate = savedCards.find((c) => hasDuplicateOffering(c, savedCards));
-      if (duplicate) {
-        setSelectedId(duplicate.id);
-        return;
+      const offerings = new Set<string>();
+      let duplicate: { card: Card; offering: string } | undefined;
+      const enabledIds = new Set<string>();
+      for (const card of savedCards) {
+        const protocol = card.protocol.trim();
+        const models = parseModels(card.modelsText);
+        const keys = models.map((model) => `${protocol}\0${model}`);
+        const conflictIndex = keys.findIndex((key, index) => offerings.has(key) || keys.indexOf(key) !== index);
+        if (conflictIndex >= 0) {
+          duplicate ??= { card, offering: `${protocol}/${models[conflictIndex]}` };
+          continue;
+        }
+        keys.forEach((key) => offerings.add(key));
+        enabledIds.add(card.id);
       }
+      const next = cards.map((c) =>
+        newIds.has(c.id) ? c : { ...c, enabled: enabledIds.has(c.id) },
+      );
+      setCards(next);
+      persist(next, newIds);
+      const backends = next.filter((c) => !newIds.has(c.id)).map(toInput);
+      onChanged(await control({ action: 'setBackends', backends }));
+      if (duplicate) {
+        setSelectedId(duplicate.card.id);
+        setMsgById((current) => ({
+          ...current,
+          [duplicate.card.id]: t('producer.startAllDuplicateSkipped', { offering: duplicate.offering }),
+        }));
+      }
+      return;
     }
     const next = cards.map((c) => (newIds.has(c.id) ? c : { ...c, enabled }));
     setCards(next);

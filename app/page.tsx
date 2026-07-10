@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { control, loadBackends, saveBackends, type Status } from '@/lib/control-client';
+import { control, loadBackends, saveBackends, type Status, type StoredBackend } from '@/lib/control-client';
 import {
   loadMe,
   loadConsumerApiKeys,
@@ -47,6 +47,34 @@ function formatCreditBalance(balance: string | null | undefined): string {
   }
 
   return `${sign}${normalizedInteger}`;
+}
+
+function prepareAutoShare(backends: StoredBackend[]): {
+  backends: StoredBackend[];
+  duplicate?: string;
+} {
+  const offerings = new Set<string>();
+  let duplicate: string | undefined;
+  const preparedBackends = backends.map((backend) => {
+    const protocol = backend.protocol.trim();
+    const keys = backend.models.map((rawModel) => {
+      const model = rawModel.trim();
+      return { key: `${protocol}\0${model}`, offering: `${protocol}/${model}` };
+    });
+    const backendOfferings = new Set<string>();
+    const conflict = keys.find(({ key }) => {
+      if (offerings.has(key) || backendOfferings.has(key)) return true;
+      backendOfferings.add(key);
+      return false;
+    });
+    if (conflict) {
+      duplicate ??= conflict.offering;
+      return { ...backend, enabled: false };
+    }
+    keys.forEach(({ key }) => offerings.add(key));
+    return { ...backend, enabled: true };
+  });
+  return { backends: preparedBackends, duplicate };
 }
 
 export default function Home() {
@@ -210,17 +238,27 @@ export default function Home() {
     const stored = loadBackends(user.id);
     if (!stored.some((b) => b.models.length > 0)) return;
     autoShareDoneRef.current = true;
-    const backends = stored.map((b) => ({ ...b, enabled: true }));
+    const prepared = prepareAutoShare(stored);
+    const backends = prepared.backends;
     saveBackends(user.id, backends); // persist the "all enabled" state for the form
+    if (prepared.duplicate) {
+      setAutoShareNotice(t('producer.autoShareDuplicateSkipped', { offering: prepared.duplicate }));
+    }
     void (async () => {
-      const s = await control({ action: 'setBackends', backends });
-      onStatus(s);
-      const failed = s.producer.backends.filter((b) => b.lastHealth && !b.lastHealth.ok);
-      if (failed.length) {
+      try {
+        const s = await control({ action: 'setBackends', backends });
+        onStatus(s);
+        const failed = s.producer.backends.filter((b) => b.lastHealth && !b.lastHealth.ok);
+        if (failed.length) {
+          setAutoShareNotice(
+            t('producer.autoShareFailed', {
+              reason: failed[0].lastHealth?.reason ?? t('producer.healthReasonUnknown'),
+            }),
+          );
+        }
+      } catch {
         setAutoShareNotice(
-          t('producer.autoShareFailed', {
-            reason: failed[0].lastHealth?.reason ?? t('producer.healthReasonUnknown'),
-          }),
+          t('producer.autoShareFailed', { reason: t('producer.healthReasonUnknown') }),
         );
       }
     })();

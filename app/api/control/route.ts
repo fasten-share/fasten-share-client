@@ -19,6 +19,7 @@ function normalizeBackend(backend: BackendConfig): BackendConfig | undefined {
 function duplicateOffering(backends: BackendConfig[]): string | undefined {
   const seen = new Set<string>();
   for (const backend of backends) {
+    if (backend.enabled === false) continue;
     const protocol = backend.protocol.trim();
     for (const rawModel of backend.models) {
       const model = rawModel.trim();

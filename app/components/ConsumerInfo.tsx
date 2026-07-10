@@ -20,7 +20,17 @@ import type { DiscoverFn } from '@/lib/client/status-link';
 import { useI18n } from '@/lib/i18n/context';
 import styles from './ConsumerInfo.module.css';
 import { normalizeSupportedTools, type ToolId } from '@/lib/tool-support';
-import { applyToolConfig, inspectTool, type ToolConfigInspection } from '@/lib/tool-config-client';
+import {
+  applyToolConfig,
+  cleanupTool,
+  inspectTool,
+  listToolBackups,
+  previewToolRestore,
+  restoreTool,
+  verifyTool,
+  type ToolConfigBackup,
+  type ToolConfigInspection,
+} from '@/lib/tool-config-client';
 import { versionPrefixOrDefault } from '@/lib/version-prefix';
 import { toolEndpoint } from '@/lib/tool-endpoint';
 
@@ -221,6 +231,14 @@ export function ConsumerInfo({
   const [configuringTarget, setConfiguringTarget] = useState<CurlTarget | null>(null);
   const [configuringTool, setConfiguringTool] = useState<Exclude<ToolId, 'curl'> | null>(null);
   const [pendingInspection, setPendingInspection] = useState<ToolConfigInspection | null>(null);
+  const [toolConfigStage, setToolConfigStage] = useState<'inspect' | 'cleaned' | 'verified'>('inspect');
+  const [toolBackups, setToolBackups] = useState<ToolConfigBackup[]>([]);
+  const [restorePreview, setRestorePreview] = useState<{
+    id: string;
+    files: Array<{ path: string }>;
+    environment: Array<{ name: string; source: string }>;
+  } | null>(null);
+  const [toolConfigWorking, setToolConfigWorking] = useState(false);
   const [toolConfigMessage, setToolConfigMessage] = useState('');
   const [toolConfigError, setToolConfigError] = useState('');
   const [followingUserIds, setFollowingUserIds] = useState<Set<string>>(new Set());
@@ -384,9 +402,12 @@ export function ConsumerInfo({
     setToolConfigMessage('');
     setConfiguringTarget(target);
     setConfiguringTool(tool);
+    setToolConfigStage('inspect');
+    setRestorePreview(null);
     try {
-      const inspection = await inspectTool(tool);
+      const [inspection, backups] = await Promise.all([inspectTool(tool), listToolBackups(tool)]);
       setPendingInspection(inspection);
+      setToolBackups(backups);
     } catch (error) {
       setToolConfigError(error instanceof Error ? error.message : String(error));
       setConfiguringTarget(null);
@@ -398,7 +419,59 @@ export function ConsumerInfo({
     setConfiguringTarget(null);
     setConfiguringTool(null);
     setPendingInspection(null);
+    setRestorePreview(null);
+    setToolBackups([]);
   }, []);
+
+  async function cleanToolConfig(tool: Exclude<ToolId, 'curl'>): Promise<void> {
+    setToolConfigWorking(true);
+    setToolConfigError('');
+    try {
+      const result = await cleanupTool(tool);
+      setPendingInspection(result);
+      setToolConfigStage('cleaned');
+      setToolConfigMessage(t('consumer.toolConfigCleaned', { backup: result.backupPath || t('consumer.noBackup') }));
+      setToolBackups(await listToolBackups(tool));
+    } catch (error) {
+      setToolConfigError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setToolConfigWorking(false);
+    }
+  }
+
+  async function verifyToolConfig(tool: Exclude<ToolId, 'curl'>): Promise<void> {
+    setToolConfigWorking(true);
+    setToolConfigError('');
+    try {
+      const inspection = await verifyTool(tool);
+      setPendingInspection(inspection);
+      setToolConfigStage(inspection.clean ? 'verified' : 'cleaned');
+      if (!inspection.clean) setToolConfigError(t('consumer.toolConfigNotClean'));
+    } catch (error) {
+      setToolConfigError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setToolConfigWorking(false);
+    }
+  }
+
+  async function showRestorePreview(tool: Exclude<ToolId, 'curl'>, backupId: string): Promise<void> {
+    setToolConfigWorking(true);
+    setToolConfigError('');
+    try { setRestorePreview(await previewToolRestore(tool, backupId)); }
+    catch (error) { setToolConfigError(error instanceof Error ? error.message : String(error)); }
+    finally { setToolConfigWorking(false); }
+  }
+
+  async function restoreBackup(tool: Exclude<ToolId, 'curl'>, backupId: string): Promise<void> {
+    setToolConfigWorking(true);
+    try {
+      setPendingInspection(await restoreTool(tool, backupId));
+      setRestorePreview(null);
+      setToolConfigStage('inspect');
+      setToolConfigMessage(t('consumer.toolConfigRestored'));
+    } catch (error) { setToolConfigError(error instanceof Error ? error.message : String(error)); }
+    finally { setToolConfigWorking(false); }
+  }
 
   async function finishToolConfig(target: CurlTarget, tool: Exclude<ToolId, 'curl'>): Promise<void> {
     if (!selectedApiKey) return;
@@ -984,22 +1057,51 @@ export function ConsumerInfo({
                 `${t('consumer.previewConfigPath')}: ${pendingInspection.configPath}`,
               ].join('\n')}
             </pre>
-            {pendingInspection.conflicts.length > 0 && (
+            <h4>{t('consumer.currentConfigTitle')}</h4>
+            <pre>{pendingInspection.configFiles.map((file) => `${file.exists ? 'REMOVE' : 'OK'}  ${file.path}`).join('\n')}</pre>
+            <h4>{t('consumer.envConflictTitle')}</h4>
+            {pendingInspection.environmentConflicts.length === 0 ? (
+              <p>{t('consumer.noEnvConflict')}</p>
+            ) : (
+              <pre>{pendingInspection.environmentConflicts.map((item) => `${item.removable ? 'REMOVE' : 'MANUAL'}  ${item.name}=${item.value}\n${item.source}${item.reason ? `\n${item.reason}` : ''}`).join('\n\n')}</pre>
+            )}
+            {toolConfigStage === 'inspect' && <p>{t('consumer.cleanupPreviewDescription')}</p>}
+            {toolConfigStage === 'cleaned' && <p>{t('consumer.cleanupVerifyDescription')}</p>}
+            {toolConfigStage === 'verified' && <p>{t('consumer.cleanupVerifiedDescription')}</p>}
+            {restorePreview && (
               <>
-                <h4>{t('consumer.envConflictTitle')}</h4>
-                <p>{t('consumer.envConflictDescription')}</p>
-                <pre>{pendingInspection.conflicts.join('\n')}</pre>
+                <h4>{t('consumer.restorePreviewTitle')}</h4>
+                <pre>{[
+                  ...restorePreview.files.map((file) => `${t('consumer.restoreFile')}: ${file.path}`),
+                  ...restorePreview.environment.map((item) => `${t('consumer.restoreEnv')}: ${item.name} (${item.source})`),
+                ].join('\n')}</pre>
               </>
+            )}
+            {toolBackups.length > 0 && !restorePreview && (
+              <div className="actions">
+                <label>{t('consumer.availableBackups')}</label>
+                {toolBackups.map((backup) => (
+                  <button key={backup.id} className="secondary" disabled={toolConfigWorking} onClick={() => void showRestorePreview(configuringTool, backup.id)}>
+                    {t('consumer.previewRestore')} {new Date(backup.createdAt).toLocaleString()}
+                  </button>
+                ))}
+              </div>
             )}
             <div className="modal-actions">
               <button className="secondary" onClick={closeToolConfigPreview}>
                 {t('consumer.close')}
               </button>
-              <button onClick={() => {
-                void finishToolConfig(configuringTarget, configuringTool);
-              }}>
-                {t('consumer.confirmConfigure')}
-              </button>
+              {restorePreview ? (
+                <button disabled={toolConfigWorking} onClick={() => void restoreBackup(configuringTool, restorePreview.id)}>{t('consumer.confirmRestore')}</button>
+              ) : toolConfigStage === 'inspect' ? (
+                pendingInspection.clean
+                  ? <button disabled={toolConfigWorking} onClick={() => void verifyToolConfig(configuringTool)}>{t('consumer.verifyCleanup')}</button>
+                  : <button disabled={toolConfigWorking} onClick={() => void cleanToolConfig(configuringTool)}>{t('consumer.confirmCleanup')}</button>
+              ) : toolConfigStage === 'cleaned' ? (
+                <button disabled={toolConfigWorking} onClick={() => void verifyToolConfig(configuringTool)}>{t('consumer.verifyCleanup')}</button>
+              ) : (
+                <button disabled={toolConfigWorking || !pendingInspection.clean} onClick={() => void finishToolConfig(configuringTarget, configuringTool)}>{t('consumer.confirmConfigure')}</button>
+              )}
             </div>
           </div>
         </div>
