@@ -22,11 +22,11 @@ export function CurlModal({ target, origin, apiKey, copied, t, onClose, onCopy }
 
 export interface RestorePreview { id: string; files: Array<{ path: string }>; environment: Array<{ name: string; source: string }> }
 
-export function ToolConfigModal({ target, tool, origin, apiKey, inspection, stage, backups, restorePreview, working, t, onClose, onClean, onVerify, onPreviewRestore, onRestore, onFinish }: {
+export function ToolConfigModal({ target, tool, origin, apiKey, inspection, stage, backups, restorePreview, working, t, onClose, onClean, onCheckAndConfigure, onPreviewRestore, onRestore }: {
   target: CurlTarget; tool: Exclude<ToolId, 'curl'>; origin: string; apiKey: ConsumerApiKeyDto | null;
-  inspection: ToolConfigInspection; stage: 'inspect' | 'cleaned' | 'verified'; backups: ToolConfigBackup[];
+  inspection: ToolConfigInspection; stage: 'inspect' | 'cleaned'; backups: ToolConfigBackup[];
   restorePreview: RestorePreview | null; working: boolean; t: Translate; onClose: () => void;
-  onClean: () => void; onVerify: () => void; onPreviewRestore: (id: string) => void; onRestore: (id: string) => void; onFinish: () => void;
+  onClean: () => void; onCheckAndConfigure: () => void; onPreviewRestore: (id: string) => void; onRestore: (id: string) => void;
 }) {
   return <div className="modal-overlay" onClick={onClose}><div className="modal" onClick={(event) => event.stopPropagation()}>
     <h3>{t('consumer.toolConfigPreviewTitle', { tool })}</h3><p>{t('consumer.toolConfigPreviewDescription')}</p>
@@ -34,11 +34,11 @@ export function ToolConfigModal({ target, tool, origin, apiKey, inspection, stag
     <h4>{t('consumer.currentConfigTitle')}</h4><pre>{inspection.configFiles.map((file) => `${file.exists ? 'REMOVE' : 'OK'}  ${file.path}`).join('\n')}</pre>
     <h4>{t('consumer.envConflictTitle')}</h4>
     {inspection.environmentConflicts.length === 0 ? <p>{t('consumer.noEnvConflict')}</p> : <pre>{inspection.environmentConflicts.map((item) => `${item.removable ? 'REMOVE' : 'MANUAL'}  ${item.name}=${item.value}\n${item.source}${item.reason ? `\n${item.reason}` : ''}`).join('\n\n')}</pre>}
-    <p>{t(stage === 'inspect' ? 'consumer.cleanupPreviewDescription' : stage === 'cleaned' ? 'consumer.cleanupVerifyDescription' : 'consumer.cleanupVerifiedDescription')}</p>
+    <p>{t(stage === 'inspect' ? 'consumer.cleanupPreviewDescription' : 'consumer.cleanupVerifyDescription')}</p>
     {restorePreview && <><h4>{t('consumer.restorePreviewTitle')}</h4><pre>{[...restorePreview.files.map((file) => `${t('consumer.restoreFile')}: ${file.path}`), ...restorePreview.environment.map((item) => `${t('consumer.restoreEnv')}: ${item.name} (${item.source})`)].join('\n')}</pre></>}
     {backups.length > 0 && !restorePreview && <div className="actions"><label>{t('consumer.availableBackups')}</label>{backups.map((backup) => <button key={backup.id} className="secondary" disabled={working} onClick={() => onPreviewRestore(backup.id)}>{t('consumer.previewRestore')} {new Date(backup.createdAt).toLocaleString()}</button>)}</div>}
     <div className="modal-actions"><button className="secondary" onClick={onClose}>{t('consumer.close')}</button>
-      {restorePreview ? <button disabled={working} onClick={() => onRestore(restorePreview.id)}>{t('consumer.confirmRestore')}</button> : stage === 'inspect' ? (inspection.clean ? <button disabled={working} onClick={onVerify}>{t('consumer.verifyCleanup')}</button> : <button disabled={working} onClick={onClean}>{t('consumer.confirmCleanup')}</button>) : stage === 'cleaned' ? <button disabled={working} onClick={onVerify}>{t('consumer.verifyCleanup')}</button> : <button disabled={working || !inspection.clean} onClick={onFinish}>{t('consumer.confirmConfigure')}</button>}
+      {restorePreview ? <button disabled={working} onClick={() => onRestore(restorePreview.id)}>{t('consumer.confirmRestore')}</button> : stage === 'inspect' && !inspection.clean ? <button disabled={working} onClick={onClean}>{t('consumer.confirmCleanup')}</button> : <button disabled={working} onClick={onCheckAndConfigure}>{t('consumer.checkAndConfigure')}</button>}
     </div>
   </div></div>;
 }

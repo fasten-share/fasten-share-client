@@ -19,7 +19,7 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
   const { t } = useI18n();
   const state = useConsumerInfoState({ status, discover, currentUserId, apiKeys, selectedApiKeyId, t });
   const { searchScope, setSearchScope, keyword, setKeyword, protocol, setProtocol, rows, expanded, searching, searched, searchPage, searchTotal, selectedApiKey, followingUserIds, followedUsers, followedRatings, selectedFollowingUserIds, setSelectedFollowingUserIds, followingPage, followingTotal, followError, ratingDrafts, setRatingDrafts, ratingUserIds, ratingError, setRatingError, connected, searchPageCount, followingPageCount, runSearch, openFollowingPicker, onEnter, toggleExpanded, onToggleKey, onToggleFollow, onRate, toolConfig } = state;
-  const { copied, curlTarget, setCurlTarget, toolByTarget, setToolByTarget, configuringTarget, configuringTool, pendingInspection, toolConfigStage, toolBackups, restorePreview, toolConfigWorking, toolConfigMessage, toolConfigError, copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig, verifyToolConfig, showRestorePreview, restoreBackup, finishToolConfig } = toolConfig;
+  const { copied, curlTarget, setCurlTarget, toolByTarget, setToolByTarget, configuringTarget, configuringTool, pendingInspection, toolConfigStage, toolBackups, restorePreview, toolConfigWorking, toolConfigMessage, toolConfigError, copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig, checkAndConfigureTool, showRestorePreview, restoreBackup } = toolConfig;
   return (
     <div>
       <div className="card">
@@ -392,7 +392,7 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
         <CurlModal target={curlTarget} origin={origin} apiKey={selectedApiKey} copied={copied} t={t} onClose={() => setCurlTarget(null)} onCopy={copy} />
       )}
       {configuringTarget && configuringTool && pendingInspection && (
-        <ToolConfigModal target={configuringTarget} tool={configuringTool} origin={origin} apiKey={selectedApiKey} inspection={pendingInspection} stage={toolConfigStage} backups={toolBackups} restorePreview={restorePreview} working={toolConfigWorking} t={t} onClose={closeToolConfigPreview} onClean={() => void cleanToolConfig(configuringTool)} onVerify={() => void verifyToolConfig(configuringTool)} onPreviewRestore={(id) => void showRestorePreview(configuringTool, id)} onRestore={(id) => void restoreBackup(configuringTool, id)} onFinish={() => void finishToolConfig(configuringTarget, configuringTool)} />
+        <ToolConfigModal target={configuringTarget} tool={configuringTool} origin={origin} apiKey={selectedApiKey} inspection={pendingInspection} stage={toolConfigStage} backups={toolBackups} restorePreview={restorePreview} working={toolConfigWorking} t={t} onClose={closeToolConfigPreview} onClean={() => void cleanToolConfig(configuringTool)} onCheckAndConfigure={() => void checkAndConfigureTool(configuringTarget, configuringTool)} onPreviewRestore={(id) => void showRestorePreview(configuringTool, id)} onRestore={(id) => void restoreBackup(configuringTool, id)} />
       )}
     </div>
   );

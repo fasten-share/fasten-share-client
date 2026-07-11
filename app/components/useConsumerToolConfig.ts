@@ -20,7 +20,7 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
   const [configuringTarget, setConfiguringTarget] = useState<CurlTarget | null>(null);
   const [configuringTool, setConfiguringTool] = useState<Exclude<ToolId, 'curl'> | null>(null);
   const [pendingInspection, setPendingInspection] = useState<ToolConfigInspection | null>(null);
-  const [toolConfigStage, setToolConfigStage] = useState<'inspect' | 'cleaned' | 'verified'>('inspect');
+  const [toolConfigStage, setToolConfigStage] = useState<'inspect' | 'cleaned'>('inspect');
   const [toolBackups, setToolBackups] = useState<ToolConfigBackup[]>([]);
   const [restorePreview, setRestorePreview] = useState<{
     id: string;
@@ -84,14 +84,19 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
     }
   }
 
-  async function verifyToolConfig(tool: Exclude<ToolId, 'curl'>): Promise<void> {
+  async function checkAndConfigureTool(target: CurlTarget, tool: Exclude<ToolId, 'curl'>): Promise<void> {
+    if (!selectedApiKey) return;
     setToolConfigWorking(true);
     setToolConfigError('');
     try {
       const inspection = await verifyTool(tool);
       setPendingInspection(inspection);
-      setToolConfigStage(inspection.clean ? 'verified' : 'cleaned');
-      if (!inspection.clean) setToolConfigError(t('consumer.toolConfigNotClean'));
+      setToolConfigStage('cleaned');
+      if (!inspection.clean) {
+        setToolConfigError(t('consumer.toolConfigNotClean'));
+        return;
+      }
+      await finishToolConfig(target, tool);
     } catch (error) {
       setToolConfigError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -152,6 +157,6 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
     configuringTarget, configuringTool, pendingInspection, toolConfigStage,
     toolBackups, restorePreview, toolConfigWorking, toolConfigMessage, toolConfigError,
     copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig,
-    verifyToolConfig, showRestorePreview, restoreBackup, finishToolConfig,
+    checkAndConfigureTool, showRestorePreview, restoreBackup,
   };
 }
