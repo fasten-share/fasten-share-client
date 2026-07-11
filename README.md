@@ -17,7 +17,7 @@ If you only want to use the packaged desktop app, download it from the desktop r
 
 ### Use shared model nodes
 
-Use the client as a consumer to search available producers by model/protocol, select a consumer API key, and copy a generated endpoint for compatible AI tools or OpenAI/Anthropic-style clients. The configuration assistant also detects and cleans OAuth login state that could override the API key; file-based credentials are backed up with the existing configuration. Generated Claude, Codex, OpenClaw, and Hermes configurations are locked to API-key-only operation without OAuth-provider fallback.
+Use the client as a consumer to search available producers by model/protocol, select a consumer API key, and copy a generated endpoint for compatible AI tools or OpenAI/Anthropic-style clients. The configuration assistant also detects and cleans OAuth login state that could override the API key; file-based credentials are backed up with the existing configuration. Generated Claude, Codex, OpenCode, OpenClaw, and Hermes configurations are locked to API-key-only operation without OAuth-provider fallback.
 
 Consumer model traffic goes through the Fasten Share service endpoint you copy from the UI. It does not pass through your local Next.js page.
 

@@ -78,6 +78,7 @@ const CONFLICTS: Record<ToolId, string[]> = {
   curl: [],
   claude: ['ANTHROPIC_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_SIMPLE'],
   codex: ['OPENAI_API_KEY', 'CODEX_API_KEY'],
+  opencode: ['OPENCODE_CONFIG', 'OPENCODE_CONFIG_CONTENT'],
   claw: ['OPENAI_API_KEY', 'OPENAI_API_KEYS', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
   hermes: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_TOKEN', 'HERMES_API_MODE'],
 };
@@ -95,6 +96,18 @@ function configPaths(tool: Exclude<ToolId, 'curl'>): string[] {
     case 'codex': {
       const dir = process.env.CODEX_HOME || join(homedir(), '.codex');
       return [join(dir, 'config.toml'), join(dir, 'auth.json')];
+    }
+    case 'opencode': {
+      const configDir = process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
+      const dataDir = process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
+      const defaultConfig = join(configDir, 'opencode', 'opencode.json');
+      return [
+        process.env.OPENCODE_CONFIG || defaultConfig,
+        ...(process.env.OPENCODE_CONFIG ? [defaultConfig] : []),
+        join(configDir, 'opencode', 'config.json'),
+        join(configDir, 'opencode', 'opencode.jsonc'),
+        join(dataDir, 'opencode', 'auth.json'),
+      ];
     }
     case 'claw': {
       const dir = process.env.OPENCLAW_STATE_DIR || join(homedir(), '.openclaw');
@@ -141,6 +154,10 @@ function oauthConflicts(tool: Exclude<ToolId, 'curl'>, paths: string[]): OAuthCo
   if (tool === 'codex') {
     const path = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'auth.json');
     return existing.has(path) && fileContainsOAuth(path) ? [{ id: 'codex-auth', provider: 'OpenAI', source: path, removable: true }] : [];
+  }
+  if (tool === 'opencode') {
+    const path = join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'opencode', 'auth.json');
+    return existing.has(path) && fileContainsOAuth(path) ? [{ id: 'opencode-auth', provider: 'OpenCode provider', source: path, removable: true }] : [];
   }
   if (tool === 'claw') return [...existing].filter((path) => path.endsWith('auth-profiles.json') && fileContainsOAuth(path)).map((path) => ({ id: sourceId('oauth-file', 'OpenClaw', path), provider: 'OpenClaw provider profile', source: path, removable: true }));
   const hermesHome = process.env.HERMES_HOME || join(homedir(), '.hermes');
@@ -243,6 +260,7 @@ export function inspectToolConfig(tool: unknown): ToolConfigInspection {
 function assertSupported(target: ToolConfigTarget): void {
   if (target.tool === 'claude' && target.protocol !== 'anthropic') throw new Error('Claude can only be configured for the anthropic protocol.');
   if (target.tool === 'codex' && target.protocol !== 'openai-response') throw new Error('Codex can only be configured for the openai-response protocol.');
+  if (target.tool === 'opencode' && !['openai', 'openai-response'].includes(target.protocol)) throw new Error('OpenCode can only be configured for the openai or openai-response protocol.');
   if (target.tool === 'claw' && target.protocol === 'azure-openai') throw new Error('OpenClaw Azure configuration is not supported yet.');
   if (target.tool === 'hermes' && ['gemini', 'azure-openai'].includes(target.protocol)) throw new Error(`Hermes ${target.protocol} configuration is not supported yet.`);
 }
@@ -261,6 +279,23 @@ function updateCodex(raw: string, target: ToolConfigTarget, token: string): stri
   const providers = object(root.model_providers); const provider = object(providers['fasten-share']); delete provider.env_key; delete provider.experimental_bearer_token; delete provider.requires_openai_auth; delete provider.auth;
   providers['fasten-share'] = { ...provider, name: 'Fasten Share', base_url: target.baseUrl, wire_api: 'responses', http_headers: { Authorization: `Bearer ${token}` } }; root.model_providers = providers;
   return TOML.stringify(root as Parameters<typeof TOML.stringify>[0]);
+}
+function updateOpenCode(raw: string, target: ToolConfigTarget, token: string): string {
+  const root = raw.trim() ? object(JSON5.parse(raw)) : {};
+  root.$schema = 'https://opencode.ai/config.json';
+  root.model = `fasten-share/${target.model}`;
+  root.small_model = `fasten-share/${target.model}`;
+  root.enabled_providers = ['fasten-share'];
+  root.disabled_providers = [];
+  root.provider = {
+    'fasten-share': {
+      npm: target.protocol === 'openai-response' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible',
+      name: 'Fasten Share',
+      options: { baseURL: target.baseUrl, apiKey: token },
+      models: { [target.model]: { name: target.model } },
+    },
+  };
+  return `${JSON.stringify(root, null, 2)}\n`;
 }
 function updateOpenClaw(raw: string, target: ToolConfigTarget, token: string): string {
   const root = raw.trim() ? object(JSON5.parse(raw)) : {}; const models = object(root.models); const providers = object(models.providers);
@@ -388,7 +423,7 @@ export function configureTool(target: ToolConfigTarget, apiKey: string): ToolCon
   assertConfigurable(target.tool); if (!target.model.trim() || !target.baseUrl.trim()) throw new Error('missing model or endpoint'); assertSupported(target);
   const inspection = inspectToolConfig(target.tool); if (!inspection.clean) throw new Error('Remove all detected environment variables and current configuration files, then verify again before writing Fasten Share configuration.');
   const path = configPaths(target.tool)[0]; const raw = existsSync(path) ? readFileSync(path, 'utf8') : '';
-  const content = target.tool === 'claude' ? updateClaude(raw, target, apiKey) : target.tool === 'codex' ? updateCodex(raw, target, apiKey) : target.tool === 'claw' ? updateOpenClaw(raw, target, apiKey) : updateHermes(raw, target, apiKey);
+  const content = target.tool === 'claude' ? updateClaude(raw, target, apiKey) : target.tool === 'codex' ? updateCodex(raw, target, apiKey) : target.tool === 'opencode' ? updateOpenCode(raw, target, apiKey) : target.tool === 'claw' ? updateOpenClaw(raw, target, apiKey) : updateHermes(raw, target, apiKey);
   const backupPath = writeAtomically(path, content);
   const configured = inspectToolConfig(target.tool);
   return { ...configured, clean: true, backupPath };
