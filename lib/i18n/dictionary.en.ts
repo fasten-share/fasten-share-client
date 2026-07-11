@@ -7,6 +7,8 @@ export const en = {
   'tab.consumer': 'Consumer (proxy)',
   'tab.producer': 'Producer (share)',
   'app.connecting': 'Connecting to local node…',
+  'footer.contact': 'Contact:',
+  'footer.reportIssue': 'Report an issue on GitHub',
   'auth.accountLoading': 'Loading account…',
   'auth.userFallback': 'User {id}',
   'auth.availableCreditsTitle': 'Available credits: {balance}',

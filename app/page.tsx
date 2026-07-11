@@ -345,6 +345,19 @@ export default function Home() {
         </div>
       </div>
 
+      <footer className={styles.footer}>
+        <span>{t('footer.contact')}</span>
+        <a href="mailto:fastenshare@qq.com">fastenshare@qq.com</a>
+        <span aria-hidden="true">·</span>
+        <a
+          href="https://github.com/fasten-share/fasten-share-client/issues"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {t('footer.reportIssue')}
+        </a>
+      </footer>
+
       {settingsOpen && (
         <SettingsModal
           onClose={() => setSettingsOpen(false)}

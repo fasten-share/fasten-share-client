@@ -9,6 +9,8 @@ export const zh: Record<keyof typeof en, string> = {
   'tab.consumer': '消费者（代理）',
   'tab.producer': '生产者（共享）',
   'app.connecting': '正在连接本地节点…',
+  'footer.contact': '联系我们：',
+  'footer.reportIssue': '在 GitHub 提交 Issue',
   'auth.accountLoading': '账号加载中…',
   'auth.userFallback': '用户 {id}',
   'auth.availableCreditsTitle': '可用积分：{balance}',
