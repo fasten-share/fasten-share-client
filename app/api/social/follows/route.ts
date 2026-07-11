@@ -8,7 +8,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
   const url = new URL(req.url);
-  return proxyServer(`/api/social/follows${url.search}`, {
+  return proxyServer(`/api/v1/social/follows${url.search}`, {
     cache: 'no-store',
     headers: bearerHeaders(token),
   });

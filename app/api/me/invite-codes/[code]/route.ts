@@ -12,7 +12,7 @@ export async function DELETE(req: Request, ctx: RouteContext): Promise<Response>
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
   const { code } = await ctx.params;
-  return proxyServer(`/api/me/invite-codes/${encodeURIComponent(code)}`, {
+  return proxyServer(`/api/v1/me/invite-codes/${encodeURIComponent(code)}`, {
     method: 'DELETE',
     headers: bearerHeaders(token),
   });

@@ -17,7 +17,7 @@ export async function GET(req: Request, ctx: RouteContext): Promise<Response> {
   const token = readBearerToken(req);
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
-  return proxyServer('/api/auth/me', {
+  return proxyServer('/api/v1/auth/me', {
     headers: bearerHeaders(token),
   });
 }
@@ -34,7 +34,7 @@ export async function POST(req: Request, ctx: RouteContext): Promise<Response> {
     const token = readBearerToken(req);
     if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
-    const upstream = await proxyServer('/api/auth/refresh', {
+    const upstream = await proxyServer('/api/v1/auth/refresh', {
       method: 'POST',
       headers: bearerHeaders(token),
     });
@@ -50,7 +50,7 @@ export async function POST(req: Request, ctx: RouteContext): Promise<Response> {
     return Response.json({ error: 'not found' }, { status: 404 });
   }
 
-  return proxyServer(`/api/auth/${action}`, {
+  return proxyServer(`/api/v1/auth/${action}`, {
     method: 'POST',
     headers: { 'content-type': req.headers.get('content-type') || 'application/json' },
     body: await req.text(),

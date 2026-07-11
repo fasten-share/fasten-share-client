@@ -330,7 +330,7 @@ export default function Home() {
           ) : tab === 'consumer' ? (
             <ConsumerInfo
               status={status}
-              origin={`${signalUrl.replace(/\/+$/, '')}/api/inference`}
+              origin={`${signalUrl.replace(/\/+$/, '')}/api/v1/inference`}
               discover={discover}
               currentUserId={user?.id ?? ''}
               apiKeys={apiKeys}

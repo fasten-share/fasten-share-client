@@ -71,7 +71,7 @@ export async function POST(req: Request): Promise<Response> {
       return Response.json({ error: 'invalid consumer API key' }, { status: 400 });
     }
     const encodedModel = Buffer.from(model, 'utf8').toString('base64url');
-    const routeBase = `${SERVICE_URL}/api/inference/${protocol}/${encodedModel}/${peerId}`;
+    const routeBase = `${SERVICE_URL}/api/v1/inference/${protocol}/${encodedModel}/${peerId}`;
     const baseUrl = toolEndpoint(routeBase, versionPrefix, body.tool, protocol);
     return Response.json(configureTool({ tool: body.tool, protocol, model, baseUrl }, apiKey));
   } catch (error) {

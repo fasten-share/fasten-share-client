@@ -21,7 +21,7 @@ export async function requireValidAccessToken(req: Request): Promise<Response | 
 async function validateAccessToken(token: string): Promise<Response | null> {
   let upstream: globalThis.Response;
   try {
-    upstream = await fetch(new URL('/api/auth/me', SERVICE_URL), {
+    upstream = await fetch(new URL('/api/v1/auth/me', SERVICE_URL), {
       headers: bearerHeaders(token),
       cache: 'no-store',
     });

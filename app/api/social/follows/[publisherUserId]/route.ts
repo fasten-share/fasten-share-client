@@ -28,7 +28,7 @@ async function proxyFollow(
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
   const { publisherUserId } = await context.params;
-  return proxyServer(`/api/social/follows/${encodeURIComponent(publisherUserId)}`, {
+  return proxyServer(`/api/v1/social/follows/${encodeURIComponent(publisherUserId)}`, {
     method,
     headers: bearerHeaders(token),
   });

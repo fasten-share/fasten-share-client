@@ -16,7 +16,7 @@ async function updateFreeze(
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
   const { id } = await ctx.params;
-  return proxyServer(`/api/me/api-keys/${encodeURIComponent(id)}/freeze`, {
+  return proxyServer(`/api/v1/me/api-keys/${encodeURIComponent(id)}/freeze`, {
     method,
     headers: bearerHeaders(token),
   });

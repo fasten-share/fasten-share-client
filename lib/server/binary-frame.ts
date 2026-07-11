@@ -1,6 +1,6 @@
 const MAGIC_0 = 0x4d; // M
 const MAGIC_1 = 0x43; // C
-const VERSION = 1;
+import { WIRE_VERSION } from './protocol-version';
 const HEADER_BYTES = 20;
 const UUID_HEX = /^[0-9a-f]{32}$/i;
 
@@ -27,7 +27,7 @@ export function encodeBinaryFrame(
   const frame = Buffer.allocUnsafe(HEADER_BYTES + payload.byteLength);
   frame[0] = MAGIC_0;
   frame[1] = MAGIC_1;
-  frame[2] = VERSION;
+  frame[2] = WIRE_VERSION;
   frame[3] = type;
   Buffer.from(hex, 'hex').copy(frame, 4);
   Buffer.from(payload.buffer, payload.byteOffset, payload.byteLength).copy(frame, HEADER_BYTES);
@@ -39,7 +39,7 @@ export function decodeBinaryFrame(raw: Buffer): BinaryFrame | undefined {
     raw.length <= HEADER_BYTES ||
     raw[0] !== MAGIC_0 ||
     raw[1] !== MAGIC_1 ||
-    raw[2] !== VERSION ||
+    raw[2] !== WIRE_VERSION ||
     (raw[3] !== BinaryFrameType.RequestChunk && raw[3] !== BinaryFrameType.ResponseChunk)
   ) {
     return undefined;

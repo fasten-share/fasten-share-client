@@ -3,6 +3,7 @@ import { normalizeSupportedTools } from '../tool-support';
 import { versionPrefixOrDefault } from '../version-prefix';
 import { adapterFor } from './protocols';
 import type { BackendConfig, Offering } from './types';
+import { normalizeMaxConcurrency } from '../concurrency';
 
 export type HealthResult = { ok: boolean; reason?: string };
 
@@ -41,7 +42,7 @@ export function buildAdvertisedOfferings(
   for (const backend of backends) {
     if (backend.enabled === false || advertise.get(backend.id) !== true) continue;
     const entry = byProtocol.get(backend.protocol) ?? {
-      models: [], costMultipliers: {}, supportedTools: {}, versionPrefixes: {},
+      models: [], costMultipliers: {}, supportedTools: {}, versionPrefixes: {}, maxConcurrency: {},
     };
     const multiplier = normalizeCostMultiplier(backend.costMultiplier);
     const tools = normalizeSupportedTools(backend.supportedTools, backend.protocol);
@@ -52,6 +53,7 @@ export function buildAdvertisedOfferings(
         [...(entry.supportedTools?.[model] ?? []), ...tools], backend.protocol,
       );
       entry.versionPrefixes![model] ??= versionPrefixOrDefault(backend.versionPrefix, backend.protocol);
+      entry.maxConcurrency![model] ??= normalizeMaxConcurrency(backend.maxConcurrency);
     }
     byProtocol.set(backend.protocol, entry);
   }

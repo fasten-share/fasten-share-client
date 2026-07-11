@@ -12,7 +12,7 @@ export async function POST(req: Request, context: RouteContext): Promise<Respons
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
   const { publisherUserId } = await context.params;
-  return proxyServer(`/api/social/ratings/${encodeURIComponent(publisherUserId)}`, {
+  return proxyServer(`/api/v1/social/ratings/${encodeURIComponent(publisherUserId)}`, {
     method: 'POST',
     headers: {
       ...bearerHeaders(token),

@@ -7,7 +7,7 @@ export async function GET(req: Request): Promise<Response> {
   const token = readBearerToken(req);
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
-  return proxyServer('/api/messages?limit=50', {
+  return proxyServer('/api/v1/messages?limit=50', {
     headers: bearerHeaders(token),
   });
 }

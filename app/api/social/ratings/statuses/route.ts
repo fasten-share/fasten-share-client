@@ -7,7 +7,7 @@ export async function POST(req: Request): Promise<Response> {
   const token = readBearerToken(req);
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
-  return proxyServer('/api/social/ratings/statuses', {
+  return proxyServer('/api/v1/social/ratings/statuses', {
     method: 'POST',
     headers: {
       ...bearerHeaders(token),

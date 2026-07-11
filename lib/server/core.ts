@@ -8,12 +8,13 @@ import { normalizeSupportedTools } from '../tool-support';
 import { normalizeCostMultiplier } from '../cost';
 import { normalizeMaxConcurrency } from '../concurrency';
 import { versionPrefixOrDefault } from '../version-prefix';
+import { PRODUCER_WS_PATH } from './protocol-version';
 import { SERVICE_URL } from './service-url';
 
 function producerWsUrl(serverUrl: string): string {
   const url = new URL(serverUrl);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  url.pathname = '/ws/producer';
+  url.pathname = PRODUCER_WS_PATH;
   url.search = '';
   return url.toString();
 }
@@ -140,7 +141,7 @@ export class Core {
     pageSize = 20,
   ): Promise<{ candidates: Candidate[]; page: number; pageSize: number; total: number }> {
     if (!this.accessToken) return { candidates: [], page, pageSize, total: 0 };
-    const url = new URL('/api/producers', config.all().serverUrl);
+    const url = new URL('/api/v1/producers', config.all().serverUrl);
     if (keyword) url.searchParams.set('keyword', keyword);
     if (protocol) url.searchParams.set('protocol', protocol);
     if (publisherUserIds?.length) url.searchParams.set('publisherUserIds', publisherUserIds.join(','));

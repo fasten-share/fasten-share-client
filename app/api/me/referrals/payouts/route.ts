@@ -8,5 +8,5 @@ export async function GET(req: Request): Promise<Response> {
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
   const url = new URL(req.url);
-  return proxyServer(`/api/me/referrals/payouts${url.search}`, { headers: bearerHeaders(token) });
+  return proxyServer(`/api/v1/me/referrals/payouts${url.search}`, { headers: bearerHeaders(token) });
 }

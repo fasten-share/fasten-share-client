@@ -15,6 +15,7 @@ export interface Offering {
   costMultipliers?: Record<string, number>;
   supportedTools?: Record<string, ToolId[]>;
   versionPrefixes?: Record<string, string>;
+  maxConcurrency?: Record<string, number>;
 }
 
 export interface Candidate {

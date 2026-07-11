@@ -7,14 +7,14 @@ export async function GET(req: Request): Promise<Response> {
   const token = readBearerToken(req);
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
-  return proxyServer('/api/me/api-keys', { headers: bearerHeaders(token) });
+  return proxyServer('/api/v1/me/api-keys', { headers: bearerHeaders(token) });
 }
 
 export async function POST(req: Request): Promise<Response> {
   const token = readBearerToken(req);
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
-  return proxyServer('/api/me/api-keys', {
+  return proxyServer('/api/v1/me/api-keys', {
     method: 'POST',
     headers: {
       ...bearerHeaders(token),

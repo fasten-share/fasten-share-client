@@ -6,6 +6,7 @@ import {
   decodeBinaryFrame,
   encodeBinaryFrame,
 } from './binary-frame';
+import { API_VERSION, PRODUCER_CAPABILITIES, WIRE_VERSION } from './protocol-version';
 
 export interface ProducerEvent {
   type: 'request.start' | 'request.chunk' | 'request.end' | 'request.cancel';
@@ -53,7 +54,10 @@ export class ProducerConnection extends Emitter<Events> {
   }
 
   register(authorization: string, offerings: Offering[]): boolean {
-    return this.send({ type: 'register', protocolVersion: 3, authorization, offerings });
+    return this.send({
+      type: 'register', apiVersion: API_VERSION, wireVersion: WIRE_VERSION,
+      capabilities: PRODUCER_CAPABILITIES, authorization, offerings,
+    });
   }
 
   heartbeat(): void {
@@ -121,7 +125,12 @@ export class ProducerConnection extends Emitter<Events> {
       }
       let message: Record<string, unknown>;
       try { message = JSON.parse(String(raw)) as Record<string, unknown>; } catch { return; }
-      if (message.type === 'registered') {
+      if (message.type === 'hello') {
+        if (message.apiVersion !== API_VERSION || message.wireVersion !== WIRE_VERSION) {
+          this.emit('error', new Error('UNSUPPORTED_WIRE_VERSION'));
+          ws.close(4406, 'UNSUPPORTED_WIRE_VERSION');
+        }
+      } else if (message.type === 'registered') {
         this.emit('registered', String(message.producerId));
       } else if (typeof message.type === 'string' && message.type.startsWith('request.')) {
         this.emit('request', message as unknown as ProducerEvent);
