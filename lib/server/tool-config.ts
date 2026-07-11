@@ -29,11 +29,20 @@ export interface EnvironmentConflict {
   reason?: string;
 }
 
+export interface OAuthConflict {
+  id: string;
+  provider: string;
+  source: string;
+  removable: boolean;
+  reason?: string;
+}
+
 export interface ToolConfigInspection {
   configPath: string;
   configFiles: ConfigFileInspection[];
   conflicts: string[];
   environmentConflicts: EnvironmentConflict[];
+  oauthConflicts: OAuthConflict[];
   clean: boolean;
 }
 
@@ -46,6 +55,7 @@ export interface ToolConfigCleanupResult extends ToolConfigInspection {
   backupPath?: string;
   removedConfigPaths: string[];
   removedEnvironment: string[];
+  removedOAuth: string[];
 }
 
 export interface ToolConfigBackup {
@@ -61,11 +71,12 @@ interface BackupManifest {
   tool: Exclude<ToolId, 'curl'>;
   files: Array<{ path: string; backupName: string }>;
   environment: Array<{ name: string; source: string; value: string; id: string; restoreValue: string }>;
+  metadataFiles?: Array<{ path: string; backupName: string }>;
 }
 
 const CONFLICTS: Record<ToolId, string[]> = {
   curl: [],
-  claude: ['ANTHROPIC_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL'],
+  claude: ['ANTHROPIC_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_SIMPLE'],
   codex: ['OPENAI_API_KEY', 'CODEX_API_KEY'],
   claw: ['OPENAI_API_KEY', 'OPENAI_API_KEYS', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
   hermes: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_TOKEN', 'HERMES_API_MODE'],
@@ -80,17 +91,65 @@ function assertConfigurable(tool: unknown): asserts tool is Exclude<ToolId, 'cur
 
 function configPaths(tool: Exclude<ToolId, 'curl'>): string[] {
   switch (tool) {
-    case 'claude': return [join(homedir(), '.claude', 'settings.json')];
+    case 'claude': return [join(homedir(), '.claude', 'settings.json'), join(homedir(), '.claude', '.credentials.json')];
     case 'codex': {
       const dir = process.env.CODEX_HOME || join(homedir(), '.codex');
       return [join(dir, 'config.toml'), join(dir, 'auth.json')];
     }
-    case 'claw': return [process.env.OPENCLAW_CONFIG_PATH || join(process.env.OPENCLAW_STATE_DIR || join(homedir(), '.openclaw'), 'openclaw.json')];
+    case 'claw': {
+      const dir = process.env.OPENCLAW_STATE_DIR || join(homedir(), '.openclaw');
+      const agentsDir = join(dir, 'agents');
+      const profiles = existsSync(agentsDir)
+        ? readdirSync(agentsDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => join(agentsDir, entry.name, 'agent', 'auth-profiles.json'))
+        : [];
+      return [process.env.OPENCLAW_CONFIG_PATH || join(dir, 'openclaw.json'), ...profiles];
+    }
     case 'hermes': {
       const dir = process.env.HERMES_HOME || join(homedir(), '.hermes');
-      return [join(dir, 'config.yaml'), join(dir, '.env')];
+      return [
+        join(dir, 'config.yaml'), join(dir, '.env'), join(dir, 'auth.json'),
+        join(homedir(), '.claude', '.credentials.json'),
+        join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'auth.json'),
+      ];
     }
   }
+}
+
+function hasObjectKey(path: string, key: string): boolean {
+  if (!existsSync(path)) return false;
+  try { return Object.hasOwn(object(JSON5.parse(readFileSync(path, 'utf8'))), key); } catch { return false; }
+}
+
+function fileContainsOAuth(path: string): boolean {
+  if (!existsSync(path)) return false;
+  try {
+    const raw = readFileSync(path, 'utf8');
+    return /["'](?:refresh_token|access_token|oauthAccount)["']\s*:|["'](?:type|auth_mode)["']\s*:\s*["']oauth/i.test(raw);
+  } catch { return false; }
+}
+
+function oauthConflicts(tool: Exclude<ToolId, 'curl'>, paths: string[]): OAuthConflict[] {
+  const existing = new Set(paths.filter(existsSync));
+  if (tool === 'claude') {
+    const credentialsPath = join(homedir(), '.claude', '.credentials.json');
+    const metadataPath = join(homedir(), '.claude.json');
+    return [
+      ...(existing.has(credentialsPath) && fileContainsOAuth(credentialsPath) ? [{ id: 'claude-credentials', provider: 'Anthropic', source: credentialsPath, removable: true }] : []),
+      ...(hasObjectKey(metadataPath, 'oauthAccount') ? [{ id: 'claude-oauth-account', provider: 'Anthropic', source: `${metadataPath} (oauthAccount)`, removable: true }] : []),
+    ];
+  }
+  if (tool === 'codex') {
+    const path = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'auth.json');
+    return existing.has(path) && fileContainsOAuth(path) ? [{ id: 'codex-auth', provider: 'OpenAI', source: path, removable: true }] : [];
+  }
+  if (tool === 'claw') return [...existing].filter((path) => path.endsWith('auth-profiles.json') && fileContainsOAuth(path)).map((path) => ({ id: sourceId('oauth-file', 'OpenClaw', path), provider: 'OpenClaw provider profile', source: path, removable: true }));
+  const hermesHome = process.env.HERMES_HOME || join(homedir(), '.hermes');
+  return [...existing].filter(fileContainsOAuth).map((path) => ({
+    id: sourceId('oauth-file', 'Hermes', path),
+    provider: path === join(hermesHome, 'auth.json') ? 'Hermes provider' : path.includes(`${join(homedir(), '.claude')}`) ? 'Inherited Claude Code OAuth' : 'Inherited Codex OAuth',
+    source: path,
+    removable: true,
+  }));
 }
 
 function mask(value: string): string {
@@ -170,12 +229,14 @@ export function inspectToolConfig(tool: unknown): ToolConfigInspection {
   assertConfigurable(tool);
   const configFiles = configPaths(tool).map((path) => ({ path, exists: existsSync(path) }));
   const environment = environmentConflicts(tool);
+  const oauth = oauthConflicts(tool, configFiles.map((file) => file.path));
   return {
     configPath: configFiles[0].path,
     configFiles,
     conflicts: [...new Set(environment.map((item) => item.name))],
     environmentConflicts: environment,
-    clean: !configFiles.some((item) => item.exists) && environment.length === 0,
+    oauthConflicts: oauth,
+    clean: !configFiles.some((item) => item.exists) && environment.length === 0 && oauth.length === 0,
   };
 }
 
@@ -192,11 +253,11 @@ function object(value: unknown): Record<string, unknown> { return value && typeo
 
 function updateClaude(raw: string, target: ToolConfigTarget, token: string): string {
   const root = raw.trim() ? object(JSON5.parse(raw)) : {}; const env = object(root.env); delete env.ANTHROPIC_AUTH_TOKEN;
-  root.env = { ...env, ANTHROPIC_BASE_URL: target.baseUrl, ANTHROPIC_API_KEY: token, ANTHROPIC_MODEL: target.model };
+  root.env = { ...env, ANTHROPIC_BASE_URL: target.baseUrl, ANTHROPIC_API_KEY: token, ANTHROPIC_MODEL: target.model, CLAUDE_CODE_SIMPLE: '1' };
   return `${JSON.stringify(root, null, 2)}\n`;
 }
 function updateCodex(raw: string, target: ToolConfigTarget, token: string): string {
-  const root = raw.trim() ? TOML.parse(raw) as Record<string, unknown> : {}; root.model = target.model; root.model_provider = 'fasten-share';
+  const root = raw.trim() ? TOML.parse(raw) as Record<string, unknown> : {}; root.model = target.model; root.model_provider = 'fasten-share'; root.forced_login_method = 'api';
   const providers = object(root.model_providers); const provider = object(providers['fasten-share']); delete provider.env_key; delete provider.experimental_bearer_token; delete provider.requires_openai_auth; delete provider.auth;
   providers['fasten-share'] = { ...provider, name: 'Fasten Share', base_url: target.baseUrl, wire_api: 'responses', http_headers: { Authorization: `Bearer ${token}` } }; root.model_providers = providers;
   return TOML.stringify(root as Parameters<typeof TOML.stringify>[0]);
@@ -204,10 +265,10 @@ function updateCodex(raw: string, target: ToolConfigTarget, token: string): stri
 function updateOpenClaw(raw: string, target: ToolConfigTarget, token: string): string {
   const root = raw.trim() ? object(JSON5.parse(raw)) : {}; const models = object(root.models); const providers = object(models.providers);
   providers['fasten-share'] = { ...object(providers['fasten-share']), baseUrl: target.baseUrl, apiKey: token, api: openClawApi(target.protocol), models: [{ id: target.model, name: target.model }] };
-  models.mode = 'merge'; models.providers = providers; root.models = models; const agents = object(root.agents); const defaults = object(agents.defaults); defaults.model = { ...object(defaults.model), primary: `fasten-share/${target.model}` }; agents.defaults = defaults; root.agents = agents;
+  models.mode = 'replace'; models.providers = { 'fasten-share': providers['fasten-share'] }; root.models = models; const agents = object(root.agents); const defaults = object(agents.defaults); defaults.model = { ...object(defaults.model), primary: `fasten-share/${target.model}`, fallbacks: [] }; agents.defaults = defaults; root.agents = agents;
   return `${JSON.stringify(root, null, 2)}\n`;
 }
-function updateHermes(raw: string, target: ToolConfigTarget, token: string): string { const root = raw.trim() ? object(parseYaml(raw)) : {}; root.model = { ...object(root.model), default: target.model, provider: 'custom', base_url: target.baseUrl, api_key: token, api_mode: hermesApiMode(target.protocol) }; return stringifyYaml(root); }
+function updateHermes(raw: string, target: ToolConfigTarget, token: string): string { const root = raw.trim() ? object(parseYaml(raw)) : {}; root.model = { ...object(root.model), default: target.model, provider: 'custom', base_url: target.baseUrl, api_key: token, api_mode: hermesApiMode(target.protocol) }; delete root.fallback_model; root.fallback_providers = []; return stringifyYaml(root); }
 
 function backupName(path: string): string { return `${path}.fasten-share-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`; }
 function writeAtomically(path: string, content: string): string | undefined {
@@ -217,6 +278,17 @@ function writeAtomically(path: string, content: string): string | undefined {
 }
 
 function writeManifest(path: string, manifest: BackupManifest): void { writeFileSync(join(path, 'manifest.json'), JSON.stringify(manifest, null, 2), { encoding: 'utf8', mode: 0o600 }); }
+
+function removeClaudeOAuthMetadata(): { path: string; content: string } | undefined {
+  const path = join(homedir(), '.claude.json');
+  if (!hasObjectKey(path, 'oauthAccount')) return undefined;
+  const content = readFileSync(path, 'utf8');
+  const root = object(JSON5.parse(content));
+  delete root.oauthAccount;
+  writeFileSync(path, `${JSON.stringify(root, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  try { execFileSync('claude', ['auth', 'logout'], { encoding: 'utf8', timeout: 15_000 }); } catch {}
+  return { path, content };
+}
 
 function cleanupShellLine(path: string, name: string): void {
   const raw = readFileSync(path, 'utf8'); const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -255,24 +327,34 @@ export function cleanupToolConfig(tool: unknown): ToolConfigCleanupResult {
   assertConfigurable(tool);
   const before = inspectToolConfig(tool);
   const files = before.configFiles.filter((file) => file.exists); const environment = before.environmentConflicts.filter((item) => item.removable);
-  if (!files.length && !environment.length) return { ...before, removedConfigPaths: [], removedEnvironment: [] };
+  const oauth = before.oauthConflicts.filter((item) => item.removable);
+  if (!files.length && !environment.length && !oauth.length) return { ...before, removedConfigPaths: [], removedEnvironment: [], removedOAuth: [] };
   const id = `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID()}`; const backupPath = join(BACKUP_DIR, id); mkdirSync(backupPath, { recursive: true, mode: 0o700 });
   const manifest: BackupManifest = {
     id, createdAt: new Date().toISOString(), tool, files: [],
-    environment: environment.map((entry) => ({ name: entry.name, source: entry.source, value: entry.value, id: entry.id, restoreValue: restoreValue(entry) })),
+    environment: environment.map((entry) => ({ name: entry.name, source: entry.source, value: entry.value, id: entry.id, restoreValue: restoreValue(entry) })), metadataFiles: [],
   };
   for (const [index, file] of files.entries()) { const backupName = `file-${index}`; copyFileSync(file.path, join(backupPath, backupName)); manifest.files.push({ path: file.path, backupName }); }
   writeManifest(backupPath, manifest);
   for (const file of files) rmSync(file.path, { force: true });
   for (const item of environment) removeEnvironment(item);
-  return { ...inspectToolConfig(tool), backupId: id, backupPath, removedConfigPaths: files.map((file) => file.path), removedEnvironment: environment.map((item) => item.name) };
+  if (tool === 'claude' && oauth.some((item) => item.id === 'claude-oauth-account')) {
+    const metadata = removeClaudeOAuthMetadata();
+    if (metadata) {
+      const backupName = 'metadata-0';
+      writeFileSync(join(backupPath, backupName), metadata.content, { encoding: 'utf8', mode: 0o600 });
+      manifest.metadataFiles!.push({ path: metadata.path, backupName });
+      writeManifest(backupPath, manifest);
+    }
+  }
+  return { ...inspectToolConfig(tool), backupId: id, backupPath, removedConfigPaths: files.map((file) => file.path), removedEnvironment: environment.map((item) => item.name), removedOAuth: oauth.map((item) => item.provider) };
 }
 
 export function listToolConfigBackups(tool: unknown): ToolConfigBackup[] {
   assertConfigurable(tool); if (!existsSync(BACKUP_DIR)) return [];
   return readdirSync(BACKUP_DIR, { withFileTypes: true }).flatMap((entry) => {
     if (!entry.isDirectory()) return []; try { const manifest = JSON.parse(readFileSync(join(BACKUP_DIR, entry.name, 'manifest.json'), 'utf8')) as BackupManifest; return manifest.tool === tool ? [{ id: manifest.id, createdAt: manifest.createdAt, tool: manifest.tool, path: join(BACKUP_DIR, entry.name) }] : []; } catch { return []; }
-  }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3);
 }
 
 function manifestFor(tool: Exclude<ToolId, 'curl'>, backupId: unknown): { path: string; manifest: BackupManifest } {
@@ -283,13 +365,14 @@ function manifestFor(tool: Exclude<ToolId, 'curl'>, backupId: unknown): { path: 
 export function previewToolConfigRestore(tool: unknown, backupId: unknown): Pick<BackupManifest, 'id' | 'createdAt' | 'tool' | 'files'> & { environment: Array<{ name: string; source: string }> } {
   assertConfigurable(tool);
   const manifest = manifestFor(tool, backupId).manifest;
-  return { ...manifest, environment: manifest.environment.map(({ name, source }) => ({ name, source })) };
+  return { ...manifest, files: [...manifest.files, ...(manifest.metadataFiles ?? [])], environment: manifest.environment.map(({ name, source }) => ({ name, source })) };
 }
 
 export function restoreToolConfig(tool: unknown, backupId: unknown): ToolConfigInspection {
   assertConfigurable(tool); const { path, manifest } = manifestFor(tool, backupId);
   for (const file of configPaths(tool)) rmSync(file, { force: true });
   for (const file of manifest.files) { mkdirSync(dirname(file.path), { recursive: true, mode: 0o700 }); copyFileSync(join(path, file.backupName), file.path); }
+  for (const file of manifest.metadataFiles ?? []) { mkdirSync(dirname(file.path), { recursive: true, mode: 0o700 }); copyFileSync(join(path, file.backupName), file.path); }
   for (const variable of manifest.environment) {
     if (variable.id.startsWith('process:')) process.env[variable.name] = variable.restoreValue;
     else if (variable.id.startsWith('win-user:')) execFileSync('reg.exe', ['add', 'HKCU\\Environment', '/v', variable.name, '/t', 'REG_SZ', '/d', variable.restoreValue, '/f'], { windowsHide: true });

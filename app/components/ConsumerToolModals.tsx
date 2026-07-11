@@ -34,6 +34,8 @@ export function ToolConfigModal({ target, tool, origin, apiKey, inspection, stag
     <h4>{t('consumer.currentConfigTitle')}</h4><pre>{inspection.configFiles.map((file) => `${file.exists ? 'REMOVE' : 'OK'}  ${file.path}`).join('\n')}</pre>
     <h4>{t('consumer.envConflictTitle')}</h4>
     {inspection.environmentConflicts.length === 0 ? <p>{t('consumer.noEnvConflict')}</p> : <pre>{inspection.environmentConflicts.map((item) => `${item.removable ? 'REMOVE' : 'MANUAL'}  ${item.name}=${item.value}\n${item.source}${item.reason ? `\n${item.reason}` : ''}`).join('\n\n')}</pre>}
+    <h4>{t('consumer.oauthConflictTitle')}</h4>
+    {inspection.oauthConflicts.length === 0 ? <p>{t('consumer.noOAuthConflict')}</p> : <pre>{inspection.oauthConflicts.map((item) => `${item.removable ? 'REMOVE' : 'MANUAL'}  ${item.provider}\n${item.source}${item.reason ? `\n${item.reason}` : ''}`).join('\n\n')}</pre>}
     <p>{t(stage === 'inspect' ? 'consumer.cleanupPreviewDescription' : 'consumer.cleanupVerifyDescription')}</p>
     {restorePreview && <><h4>{t('consumer.restorePreviewTitle')}</h4><pre>{[...restorePreview.files.map((file) => `${t('consumer.restoreFile')}: ${file.path}`), ...restorePreview.environment.map((item) => `${t('consumer.restoreEnv')}: ${item.name} (${item.source})`)].join('\n')}</pre></>}
     {backups.length > 0 && !restorePreview && <div className="actions"><label>{t('consumer.availableBackups')}</label>{backups.map((backup) => <button key={backup.id} className="secondary" disabled={working} onClick={() => onPreviewRestore(backup.id)}>{t('consumer.previewRestore')} {new Date(backup.createdAt).toLocaleString()}</button>)}</div>}

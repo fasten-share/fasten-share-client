@@ -13,6 +13,7 @@ export interface ToolConfigInspection {
     removable: boolean;
     reason?: string;
   }>;
+  oauthConflicts: Array<{ id: string; provider: string; source: string; removable: boolean; reason?: string }>;
   clean: boolean;
   backupPath?: string;
 }
@@ -21,6 +22,7 @@ export interface ToolConfigCleanupResult extends ToolConfigInspection {
   backupId?: string;
   removedConfigPaths: string[];
   removedEnvironment: string[];
+  removedOAuth: string[];
 }
 
 export interface ToolConfigBackup {
