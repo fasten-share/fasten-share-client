@@ -310,7 +310,7 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeToolConfigPreview, curlTarget, pendingInspection]);
+  }, [closeToolConfigPreview, curlTarget, pendingInspection, setCurlTarget]);
 
   return {
     searchScope, setSearchScope, keyword, setKeyword, protocol, setProtocol, rows,

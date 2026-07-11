@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, Suspense, useEffect, useState } from 'react';
+import { FormEvent, Suspense, useState } from 'react';
 import { consumeAuthNotice, submitAuth } from '@/lib/client/auth';
 import { useI18n } from '@/lib/i18n/context';
 import { UserAgreementModal } from './UserAgreementModal';
@@ -20,15 +20,10 @@ function LoginContent() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [inviteCode, setInviteCode] = useState(() => search.get('inviteCode') || '');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => consumeAuthNotice());
   const [loading, setLoading] = useState(false);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [agreementOpen, setAgreementOpen] = useState(false);
-
-  useEffect(() => {
-    const notice = consumeAuthNotice();
-    if (notice) setError(notice);
-  }, []);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import QRCode from 'qrcode';
 import {
   createRechargeOrder,
@@ -34,15 +35,15 @@ export function RechargeModal({
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
-  const [qrSrc, setQrSrc] = useState('');
+  const [qrImage, setQrImage] = useState<{ codeUrl: string; src: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
-    setQrSrc('');
     if (!order?.codeUrl) return;
-    void QRCode.toDataURL(order.codeUrl, { width: 220, margin: 1, errorCorrectionLevel: 'M' })
+    const codeUrl = order.codeUrl;
+    void QRCode.toDataURL(codeUrl, { width: 220, margin: 1, errorCorrectionLevel: 'M' })
       .then((url) => {
-        if (alive) setQrSrc(url);
+        if (alive) setQrImage({ codeUrl, src: url });
       })
       .catch(() => {
         if (alive) setError(t('recharge.qrFailed'));
@@ -52,9 +53,10 @@ export function RechargeModal({
     };
   }, [order?.codeUrl, t]);
 
+  const pendingOrderNo = order?.status === 'pending' ? order.outTradeNo : null;
   useEffect(() => {
-    if (!order || order.status !== 'pending') return;
-    const outTradeNo = order.outTradeNo;
+    if (!pendingOrderNo) return;
+    const outTradeNo = pendingOrderNo;
     let alive = true;
     const timer = window.setInterval(() => {
       void syncRechargeOrder(outTradeNo)
@@ -74,7 +76,7 @@ export function RechargeModal({
       alive = false;
       window.clearInterval(timer);
     };
-  }, [order?.outTradeNo, order?.status, onPaid]);
+  }, [pendingOrderNo, onPaid]);
 
   async function startRecharge(nextAmount = amount): Promise<void> {
     setLoading(true);
@@ -140,7 +142,11 @@ export function RechargeModal({
         ) : (
           <div className={styles.order}>
             <div className={styles.qrCard}>
-              {qrSrc ? <img src={qrSrc} alt={t('recharge.qrAlt')} /> : <div className={styles.qrPlaceholder}>QR</div>}
+              {order.codeUrl && qrImage?.codeUrl === order.codeUrl ? (
+                <Image src={qrImage.src} width={220} height={220} unoptimized alt={t('recharge.qrAlt')} />
+              ) : (
+                <div className={styles.qrPlaceholder}>QR</div>
+              )}
             </div>
             <div className={styles.detail}>
               <div className={`badge ${order.status === 'paid' ? 'green' : ''}`}>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { control, loadBackends, newBackendId, saveBackends, type Status } from '@/lib/control-client';
 import { normalizeVersionPrefix } from '@/lib/version-prefix';
 import { useI18n } from '@/lib/i18n/context';
@@ -30,20 +30,15 @@ export function ProducerForm({
   currentUserId: string;
 }) {
   const { t } = useI18n();
-  const [cards, setCards] = useState<Card[]>([]);
+  const initialCards = () => loadBackends(currentUserId).map(toCard);
+  const [cards, setCards] = useState<Card[]>(initialCards);
   // Ids that exist locally but were never added to the server yet (drafts).
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => initialCards()[0]?.id ?? null);
   const [msgById, setMsgById] = useState<Record<string, string>>({});
   const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [requiresDisclaimerAcceptance, setRequiresDisclaimerAcceptance] = useState(false);
   const pendingShareRef = useRef<(() => Promise<void>) | null>(null);
-
-  // Prefill from localStorage (the browser's copy of the backend configs).
-  useEffect(() => {
-    const loaded = loadBackends(currentUserId).map(toCard);
-    setCards(loaded);
-    setSelectedId(loaded[0]?.id ?? null);
-  }, [currentUserId]);
 
   const connected = status.signaling.connected;
 
@@ -201,16 +196,19 @@ export function ProducerForm({
       return;
     }
     pendingShareRef.current = action;
+    setRequiresDisclaimerAcceptance(true);
     setShowDisclaimer(true);
   }
 
   function viewDisclaimer(): void {
     pendingShareRef.current = null;
+    setRequiresDisclaimerAcceptance(false);
     setShowDisclaimer(true);
   }
 
   function closeDisclaimer(): void {
     pendingShareRef.current = null;
+    setRequiresDisclaimerAcceptance(false);
     setShowDisclaimer(false);
   }
 
@@ -218,6 +216,7 @@ export function ProducerForm({
     window.localStorage.setItem(DISCLAIMER_ACCEPTED_KEY, 'true');
     const pendingShare = pendingShareRef.current;
     pendingShareRef.current = null;
+    setRequiresDisclaimerAcceptance(false);
     setShowDisclaimer(false);
     if (pendingShare) void pendingShare();
   }
@@ -386,7 +385,7 @@ export function ProducerForm({
 
       {showDisclaimer && (
         <SharingDisclaimerModal
-          requiresAcceptance={pendingShareRef.current !== null}
+          requiresAcceptance={requiresDisclaimerAcceptance}
           onAccept={acceptDisclaimer}
           onClose={closeDisclaimer}
         />
@@ -394,4 +393,3 @@ export function ProducerForm({
     </div>
   );
 }
-

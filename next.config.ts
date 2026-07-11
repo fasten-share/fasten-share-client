@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
   // Parent lockfile above this project would otherwise misplace the standalone
   // output; pin the tracing root to this project.
   outputFileTracingRoot: path.join(import.meta.dirname),
+  // The tool-config route intentionally inspects user-selected filesystem paths.
+  // Prevent NFT from treating this build-time config file as a runtime asset.
+  outputFileTracingExcludes: {
+    '/api/tools/configure': ['./next.config.ts'],
+  },
   // `ws` is used for the local status bridge and the outbound producer channel.
 };
 

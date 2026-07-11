@@ -72,6 +72,7 @@ export default function Home() {
   const [apiKeysError, setApiKeysError] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
   const [signalUrl, setSignalUrl] = useState('');
+  const [bridgeHandle, setBridgeHandle] = useState<ProducerBridgeHandle | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -98,8 +99,6 @@ export default function Home() {
           if (!alive) return;
           if (error?.status === 403) setAuthNotice(error.message);
           setUser(null);
-          bridgeRef.current?.stop();
-          bridgeRef.current = null;
           router.replace('/login');
         });
       })
@@ -122,16 +121,15 @@ export default function Home() {
 
   useEffect(() => {
     if (!user?.id) {
-      setApiKeys([]);
-      setSelectedApiKeyId('');
-      setApiKeysLoading(false);
-      setApiKeysError('');
       return;
     }
 
     let alive = true;
-    setApiKeysLoading(true);
-    setApiKeysError('');
+    window.queueMicrotask(() => {
+      if (!alive) return;
+      setApiKeysLoading(true);
+      setApiKeysError('');
+    });
     void loadConsumerApiKeys()
       .then((keys) => {
         if (!alive) return;
@@ -171,8 +169,6 @@ export default function Home() {
     setUser(null);
     setApiKeys([]);
     setSelectedApiKeyId('');
-    bridgeRef.current?.stop();
-    bridgeRef.current = null;
     router.replace('/login');
   }, [router]);
 
@@ -198,10 +194,10 @@ export default function Home() {
     const prepared = prepareAutoShare(stored);
     const backends = prepared.backends;
     saveBackends(user.id, backends); // persist the "all enabled" state for the form
-    if (prepared.duplicate) {
-      setAutoShareNotice(t('producer.autoShareDuplicateSkipped', { offering: prepared.duplicate }));
-    }
     void (async () => {
+      if (prepared.duplicate) {
+        setAutoShareNotice(t('producer.autoShareDuplicateSkipped', { offering: prepared.duplicate }));
+      }
       try {
         const s = await control({ action: 'setBackends', backends });
         onStatus(s);
@@ -230,20 +226,19 @@ export default function Home() {
 
   // The bridge (which owns the signaling socket) drives discovery for the
   // Consumer search. Stable wrapper so ConsumerInfo doesn't re-render needlessly.
-  const bridgeRef = useRef<ProducerBridgeHandle | null>(null);
   const discover = useCallback<DiscoverFn>(
     (keyword, protocol, publisherUserIds, page, pageSize) =>
-      bridgeRef.current
-        ? bridgeRef.current.discover(keyword, protocol, publisherUserIds, page, pageSize)
+      bridgeHandle
+        ? bridgeHandle.discover(keyword, protocol, publisherUserIds, page, pageSize)
         : Promise.resolve({ candidates: [], page: page ?? 1, pageSize: pageSize ?? 20, total: 0 }),
-    [],
+    [bridgeHandle],
   );
 
   const connected = status?.signaling.connected ?? false;
 
   return (
     <div className={styles.app}>
-      {user && <ProducerBridge onStatus={onStatus} onHandle={(h) => (bridgeRef.current = h)} />}
+      {user && <ProducerBridge onStatus={onStatus} onHandle={setBridgeHandle} />}
       <div className={styles.topbar}>
         <h1>{t('app.title')}</h1>
         <span className="badge">
@@ -340,7 +335,7 @@ export default function Home() {
               apiKeysError={apiKeysError}
             />
           ) : (
-            <ProducerForm status={status} onChanged={setStatus} notice={autoShareNotice} currentUserId={user?.id ?? ''} />
+            <ProducerForm key={user?.id ?? ''} status={status} onChanged={setStatus} notice={autoShareNotice} currentUserId={user?.id ?? ''} />
           )}
         </div>
       </div>
