@@ -135,7 +135,23 @@
 .privacy { margin-top: 18px; line-height: 1.55; }
 .expired { color: var(--danger); }
 .qrStep { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: 18px; }
-.qrContainer { width: 240px; min-height: 240px; display: grid; place-items: center; overflow: hidden; border-radius: 12px; background: #fff; }
+.qrContainer {
+  width: 240px;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #000;
+}
+.qrContainer iframe {
+  display: block;
+  width: 240px !important;
+  height: 160px !important;
+  flex: 0 0 240px;
+  border: 0;
+}
 .fallback { color: var(--accent-2); }
 .qrActions { display: flex; gap: 10px; }
 .qrActions button { border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); color: var(--text); cursor: pointer; padding: 9px 12px; }
