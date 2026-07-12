@@ -113,7 +113,12 @@ export class Core {
     this.accessToken = normalized;
     this.producer?.setAccessToken(normalized);
     const cfg = config.all();
-    if (!this.producer && cfg.backendOwnerUserId === userId && cfg.backends.some((b) => b.enabled !== false)) {
+    if (
+      !this.producer &&
+      cfg.autoShare &&
+      cfg.backendOwnerUserId === userId &&
+      cfg.backends.some((b) => b.enabled !== false)
+    ) {
       this.startProducer();
     }
     this.pushStatus();
@@ -169,6 +174,10 @@ export class Core {
   setSignalUrl(): void {
     config.setServerUrl();
     this.connection.setUrl(producerWsUrl(SERVICE_URL));
+  }
+
+  setAutoShare(enabled: boolean): void {
+    config.setAutoShare(enabled);
   }
 
   private normalizeBackend(backend: BackendConfig): BackendConfig {
@@ -237,6 +246,7 @@ export class Core {
       producer: this.producerStatus,
       config: {
         signalUrl: cfg.serverUrl,
+        autoShare: cfg.autoShare,
         backends: cfg.backends.map((backend) => ({ ...backend, apiKey: backend.apiKey ? '***' : '' })),
       },
       connectedProducers: [],

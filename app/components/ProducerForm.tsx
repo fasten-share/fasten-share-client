@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { control, loadBackends, newBackendId, saveBackends, type Status } from '@/lib/control-client';
+import { control, newBackendId, type Status } from '@/lib/control-client';
 import { normalizeVersionPrefix } from '@/lib/version-prefix';
 import { useI18n } from '@/lib/i18n/context';
 import { SharingDisclaimerModal } from './SharingDisclaimerModal';
@@ -10,9 +10,8 @@ import {
   DISCLAIMER_ACCEPTED_KEY,
   emptyDraft,
   parseModels,
-  producerCards,
+  toCard,
   toInput,
-  toStored,
   type Card,
   type Draft,
 } from './producer-form-model';
@@ -22,15 +21,13 @@ export function ProducerForm({
   status,
   onChanged,
   notice,
-  currentUserId,
 }: {
   status: Status;
   onChanged: (s: Status) => void;
   notice?: string;
-  currentUserId: string;
 }) {
   const { t } = useI18n();
-  const initialCards = () => producerCards(status.config.backends, loadBackends(currentUserId));
+  const initialCards = () => status.config.backends.map(toCard);
   const [cards, setCards] = useState<Card[]>(initialCards);
   // Ids that exist locally but were never added to the server yet (drafts).
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
@@ -41,11 +38,6 @@ export function ProducerForm({
   const pendingShareRef = useRef<(() => Promise<void>) | null>(null);
 
   const connected = status.signaling.connected;
-
-  /** Persist only the already-saved backends (drafts are excluded). */
-  function persist(list: Card[], drafts: Set<string>): void {
-    saveBackends(currentUserId, list.filter((c) => !drafts.has(c.id)).map(toStored));
-  }
 
   function patchCard(id: string, patch: Partial<Draft>): void {
     setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -96,14 +88,13 @@ export function ProducerForm({
     if (hasInvalidVersionPrefix(c) || hasDuplicateOffering(c)) return;
     const s = await control({ action: 'addBackend', backend: toInput(c) });
     onChanged(s);
+    const drafts = new Set(newIds);
+    drafts.delete(c.id);
+    setNewIds(drafts);
     if (s.check && !s.check.ok) {
       setMsgById((p) => ({ ...p, [c.id]: failMsg(s.check?.reason) }));
       return;
     }
-    const drafts = new Set(newIds);
-    drafts.delete(c.id);
-    setNewIds(drafts);
-    persist(cards, drafts);
     setMsgById((p) => ({ ...p, [c.id]: t('producer.savedStarted') }));
   }
 
@@ -117,7 +108,6 @@ export function ProducerForm({
     const started: Card = { ...c, enabled: true };
     const next = cards.map((x) => (x.id === c.id ? started : x));
     setCards(next);
-    persist(next, newIds);
     const s = await control({ action: 'updateBackend', backend: toInput(started) });
     onChanged(s);
     setMsgById((p) => ({
@@ -131,7 +121,6 @@ export function ProducerForm({
     const stopped: Card = { ...c, enabled: false };
     const next = cards.map((x) => (x.id === c.id ? stopped : x));
     setCards(next);
-    persist(next, newIds);
     onChanged(await control({ action: 'setBackendEnabled', id: c.id, enabled: false }));
     setMsgById((p) => ({ ...p, [c.id]: t('producer.stopped') }));
   }
@@ -144,7 +133,6 @@ export function ProducerForm({
     setCards(nextCards);
     setNewIds(drafts);
     if (selectedId === id) setSelectedId(nextCards[0]?.id ?? null);
-    persist(nextCards, drafts);
     if (!isDraft) onChanged(await control({ action: 'removeBackend', id }));
   }
 
@@ -171,7 +159,6 @@ export function ProducerForm({
         newIds.has(c.id) ? c : { ...c, enabled: enabledIds.has(c.id) },
       );
       setCards(next);
-      persist(next, newIds);
       const backends = next.filter((c) => !newIds.has(c.id)).map(toInput);
       onChanged(await control({ action: 'setBackends', backends }));
       if (duplicate) {
@@ -185,7 +172,6 @@ export function ProducerForm({
     }
     const next = cards.map((c) => (newIds.has(c.id) ? c : { ...c, enabled }));
     setCards(next);
-    persist(next, newIds);
     const backends = next.filter((c) => !newIds.has(c.id)).map((c) => toInput({ ...c, enabled }));
     onChanged(await control({ action: 'setBackends', backends }));
   }
@@ -225,7 +211,7 @@ export function ProducerForm({
   // Start/stop state is read STRICTLY from the live producer status (the running
   // daemon is the source of truth). A backend missing from status — not started,
   // stopped, or the transport is down — counts as not sharing. We don't fall back
-  // to the localStorage `enabled`, which can be stale (e.g. after a disconnect).
+  // to the persisted config's `enabled`, which does not prove the daemon is live.
   const enabledOf = (id: string): boolean =>
     status.producer.backends.find((b) => b.id === id)?.enabled ?? false;
   const anyEnabled = status.producer.backends.some((b) => b.enabled);

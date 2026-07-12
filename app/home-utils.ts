@@ -1,9 +1,8 @@
-import type { StoredBackend } from '@/lib/control-client';
+import type { BackendInput, BackendView } from '@/lib/control-client';
 
 export type Tab = 'consumer' | 'producer';
 
 export const TAB_STORAGE_KEY = 'fs.tab';
-export const AUTO_SHARE_KEY = 'fs.autoShare';
 
 export function formatCreditBalance(balance: string | null | undefined): string {
   const raw = balance?.trim();
@@ -22,8 +21,8 @@ export function formatCreditBalance(balance: string | null | undefined): string 
   return `${sign}${normalizedInteger}`;
 }
 
-export function prepareAutoShare(backends: StoredBackend[]): {
-  backends: StoredBackend[];
+export function prepareAutoShare(backends: BackendView[]): {
+  backends: BackendInput[];
   duplicate?: string;
 } {
   const offerings = new Set<string>();
@@ -42,10 +41,10 @@ export function prepareAutoShare(backends: StoredBackend[]): {
     });
     if (conflict) {
       duplicate ??= conflict.offering;
-      return { ...backend, enabled: false };
+      return { ...backend, apiKey: undefined, enabled: false };
     }
     keys.forEach(({ key }) => offerings.add(key));
-    return { ...backend, enabled: true };
+    return { ...backend, apiKey: undefined, enabled: true };
   });
   return { backends: preparedBackends, duplicate };
 }

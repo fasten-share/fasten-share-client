@@ -46,6 +46,7 @@ export interface BackendConfig {
 
 export interface NodeConfig {
   serverUrl: string;
+  autoShare: boolean;
   producerIds: Record<string, string>;
   producerIdsServerIssued: boolean;
   backendOwnerUserId?: string;

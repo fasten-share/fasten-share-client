@@ -31,7 +31,7 @@ export interface Status {
   transport: { ready: boolean; wsPort: number };
   signaling: { connected: boolean; peerId?: string };
   producer: { running: boolean; registered: boolean; backends: BackendHealth[] };
-  config: { signalUrl: string; backends: BackendView[] };
+  config: { signalUrl: string; autoShare: boolean; backends: BackendView[] };
   connectedProducers: { protocol: string; peerId: string }[];
   // Only present on an add/updateBackend response: the pre-share health check.
   check?: { ok: boolean; reason?: string };
@@ -60,6 +60,7 @@ export interface BackendInput {
 
 type Action =
   | { action: 'setSignalUrl' }
+  | { action: 'setAutoShare'; autoShare: boolean }
   | { action: 'addBackend'; backend: BackendInput }
   | { action: 'updateBackend'; backend: BackendInput }
   | { action: 'removeBackend'; id: string }
@@ -128,48 +129,8 @@ async function toControlError(res: Response): Promise<Error & { status: number }
   return Object.assign(new Error(message), { status: res.status });
 }
 
-/* ------------------------- localStorage backends ------------------------ */
-// Backends are mirrored in localStorage so the UI prefills directly from the
-// browser (the server still keeps its own copy and runs the producer).
-
-export interface StoredBackend {
-  id: string;
-  baseUrl: string;
-  protocol: string;
-  models: string[];
-  costMultiplier?: number;
-  maxConcurrency?: number;
-  apiKey?: string;
-  apiVersion?: string; // azure-openai only
-  enabled?: boolean; // false => stopped (kept locally, not auto-shared)
-  supportedTools?: ToolId[];
-  versionPrefix?: string;
-}
-
-const BACKENDS_KEY_PREFIX = 'fs.backends.';
-
 /** A local, non-crypto id (crypto.randomUUID needs a secure context, which a
  *  LAN-IP origin like http://192.168.x.x is not). */
 export function newBackendId(): string {
   return `b-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-export function loadBackends(userId: string): StoredBackend[] {
-  if (typeof window === 'undefined' || !/^\d+$/.test(userId)) return [];
-  try {
-    const raw = window.localStorage.getItem(`${BACKENDS_KEY_PREFIX}${userId}`);
-    if (raw) return JSON.parse(raw) as StoredBackend[];
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveBackends(userId: string, backends: StoredBackend[]): void {
-  if (typeof window === 'undefined' || !/^\d+$/.test(userId)) return;
-  try {
-    window.localStorage.setItem(`${BACKENDS_KEY_PREFIX}${userId}`, JSON.stringify(backends));
-  } catch {
-    /* storage unavailable / quota — server copy still persists */
-  }
 }

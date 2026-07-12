@@ -51,6 +51,7 @@ export async function POST(req: Request): Promise<Response> {
     backends?: BackendConfig[];
     id?: string;
     enabled?: boolean;
+    autoShare?: boolean;
     keyword?: string;
     protocol?: string;
     publisherUserIds?: unknown[];
@@ -66,6 +67,9 @@ export async function POST(req: Request): Promise<Response> {
   switch (body.action) {
     case 'setSignalUrl':
       core.setSignalUrl();
+      break;
+    case 'setAutoShare':
+      core.setAutoShare(body.autoShare === true);
       break;
     case 'addBackend': {
       if (!body.backend) return Response.json({ error: 'missing backend' }, { status: 400 });

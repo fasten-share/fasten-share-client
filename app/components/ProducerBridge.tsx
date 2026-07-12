@@ -12,7 +12,7 @@ function emptyStatus(): Status {
     transport: { ready: false, wsPort: DEFAULT_WS_PORT },
     signaling: { connected: false },
     producer: { running: false, registered: false, backends: [] },
-    config: { signalUrl: '', backends: [] },
+    config: { signalUrl: '', autoShare: true, backends: [] },
     connectedProducers: [],
   };
 }

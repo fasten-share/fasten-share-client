@@ -85,6 +85,7 @@ function read(): NodeConfig {
   const cfg: NodeConfig = {
     // Service selection is no longer configurable; migrate persisted legacy URLs.
     serverUrl: SERVICE_URL,
+    autoShare: stored.autoShare !== false,
     // IDs from older clients were locally generated and are deliberately discarded.
     producerIds: stored.producerIdsServerIssued ? (stored.producerIds ?? {}) : {},
     producerIdsServerIssued: true,
@@ -98,7 +99,7 @@ function read(): NodeConfig {
 
   // Persist the migrated/seeded shape so the legacy `backend` key is dropped and
   // ids are stable across restarts.
-  if (!Array.isArray(stored.backends) || stored.serverUrl !== SERVICE_URL) write(cfg);
+  if (!Array.isArray(stored.backends) || stored.serverUrl !== SERVICE_URL || stored.autoShare === undefined) write(cfg);
   return cfg;
 }
 
@@ -120,6 +121,11 @@ export const config = {
   setServerUrl(): void {
     const c = this.all();
     c.serverUrl = SERVICE_URL;
+    write(c);
+  },
+  setAutoShare(enabled: boolean): void {
+    const c = this.all();
+    c.autoShare = enabled;
     write(c);
   },
   setOwnedBackends(userId: string, backends: BackendConfig[]): void {

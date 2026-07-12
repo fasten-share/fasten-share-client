@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { control, loadBackends, saveBackends, type Status } from '@/lib/control-client';
+import { control, type Status } from '@/lib/control-client';
 import {
   loadMe,
   loadConsumerApiKeys,
@@ -27,7 +27,6 @@ import { MessageBox } from './components/MessageBox';
 import type { DiscoverFn, ProducerBridgeHandle } from '@/lib/client/status-link';
 import { useI18n } from '@/lib/i18n/context';
 import {
-  AUTO_SHARE_KEY,
   formatCreditBalance,
   prepareAutoShare,
   TAB_STORAGE_KEY,
@@ -44,15 +43,6 @@ export default function Home() {
   const [referralOpen, setReferralOpen] = useState(false);
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
-  // Auto-share preference. Persisted in localStorage, default ON. Not rendered
-  // during SSR (the modal is closed), so a lazy initializer is hydration-safe.
-  const [autoShare, setAutoShareState] = useState<boolean>(() =>
-    typeof window === 'undefined' ? true : window.localStorage.getItem(AUTO_SHARE_KEY) !== 'false',
-  );
-  const setAutoShare = useCallback((next: boolean) => {
-    setAutoShareState(next);
-    window.localStorage.setItem(AUTO_SHARE_KEY, String(next));
-  }, []);
   const [autoShareNotice, setAutoShareNotice] = useState('');
   // Remember the last tab the user selected (defaults to consumer). Read lazily
   // so we don't touch localStorage during SSR.
@@ -209,21 +199,23 @@ export default function Home() {
     setSignalUrl((cur) => (cur === '' ? s.config.signalUrl : cur));
   }, []);
 
+  const setAutoShare = useCallback(async (next: boolean) => {
+    onStatus(await control({ action: 'setAutoShare', autoShare: next }));
+  }, [onStatus]);
+
   // Auto-share once on load == "start all": if enabled and backend configs are
-  // stored locally, force every saved backend on (enabled=true) and (health-gated)
+  // stored by Node, force every saved backend on (enabled=true) and (health-gated)
   // start sharing them — ignoring any per-backend stop from a previous session.
   // Failed health checks are surfaced per-backend in the Producer form.
   const autoShareDoneRef = useRef(false);
   useEffect(() => {
-    if (!autoShare || autoShareDoneRef.current) return;
+    if (!status?.config.autoShare || autoShareDoneRef.current) return;
     if (!status || !status.signaling.connected || status.producer.running) return;
-    if (!user?.id) return;
-    const stored = loadBackends(user.id);
+    const stored = status.config.backends;
     if (!stored.some((b) => b.models.length > 0)) return;
     autoShareDoneRef.current = true;
     const prepared = prepareAutoShare(stored);
     const backends = prepared.backends;
-    saveBackends(user.id, backends); // persist the "all enabled" state for the form
     void (async () => {
       if (prepared.duplicate) {
         setAutoShareNotice(t('producer.autoShareDuplicateSkipped', { offering: prepared.duplicate }));
@@ -245,7 +237,7 @@ export default function Home() {
         );
       }
     })();
-  }, [autoShare, status, onStatus, t, user?.id]);
+  }, [status, onStatus, t]);
 
   // Transport dropped (tab/bridge disconnect) -> Node stopped the producer
   // (core.ts disconnect handler). Re-arm the one-shot auto-share so sharing
@@ -377,7 +369,7 @@ export default function Home() {
               apiKeysError={apiKeysError}
             />
           ) : (
-            <ProducerForm key={user?.id ?? ''} status={status} onChanged={setStatus} notice={autoShareNotice} currentUserId={user?.id ?? ''} />
+            <ProducerForm key={user?.id ?? ''} status={status} onChanged={setStatus} notice={autoShareNotice} />
           )}
         </div>
       </div>
@@ -400,7 +392,7 @@ export default function Home() {
           onClose={() => setSettingsOpen(false)}
           lang={lang}
           setLang={setLang}
-          autoShare={autoShare}
+          autoShare={status?.config.autoShare ?? true}
           setAutoShare={setAutoShare}
         />
       )}

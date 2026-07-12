@@ -20,7 +20,7 @@ export function SettingsModal({
   lang: Lang;
   setLang: (l: Lang) => void;
   autoShare: boolean;
-  setAutoShare: (v: boolean) => void;
+  setAutoShare: (v: boolean) => void | Promise<void>;
 }) {
   const { t } = useI18n();
 
