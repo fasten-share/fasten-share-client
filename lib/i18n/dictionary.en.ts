@@ -16,6 +16,8 @@ export const en = {
   'auth.consumerCredits': 'Consumer: {balance}',
   'auth.producerCredits': 'Producer: {balance}',
   'auth.logout': 'Log out',
+  'auth.accountMenu': 'Account menu',
+  'withdrawal.entry': 'Withdraw',
   'auth.loginRegister': 'Log in / Sign up',
   'referral.entry': 'Invite',
   'referral.title': 'Invite friends',

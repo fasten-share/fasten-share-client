@@ -43,6 +43,7 @@ export default function Home() {
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [referralOpen, setReferralOpen] = useState(false);
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDetailsElement>(null);
   // Auto-share preference. Persisted in localStorage, default ON. Not rendered
   // during SSR (the modal is closed), so a lazy initializer is hydration-safe.
   const [autoShare, setAutoShareState] = useState<boolean>(() =>
@@ -174,6 +175,33 @@ export default function Home() {
     router.replace('/login');
   }, [router]);
 
+  const closeAccountMenu = useCallback(() => {
+    accountMenuRef.current?.removeAttribute('open');
+  }, []);
+
+  const openFromAccountMenu = useCallback(
+    (open: () => void) => {
+      closeAccountMenu();
+      open();
+    },
+    [closeAccountMenu],
+  );
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) closeAccountMenu();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeAccountMenu();
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [closeAccountMenu]);
+
   // Status is pushed by the local producer bridge (no polling). Seed the URL input
   // once from the signaling URL the bridge learns from Node.
   const onStatus = useCallback((s: Status) => {
@@ -265,29 +293,38 @@ export default function Home() {
                 balance: `${user.consumerAvailable} / ${user.producerAvailable}`,
               })}
             >
-              {t('auth.consumerCredits', {
-                balance: formatCreditBalance(user.consumerAvailable),
-              })}
-              {' · '}
-              {t('auth.producerCredits', {
-                balance: formatCreditBalance(user.producerAvailable),
-              })}
+              <span>
+                {t('auth.consumerCredits', {
+                  balance: formatCreditBalance(user.consumerAvailable),
+                })}
+              </span>
+              <span>
+                {t('auth.producerCredits', {
+                  balance: formatCreditBalance(user.producerAvailable),
+                })}
+              </span>
             </span>
-            <button type="button" className={styles.rechargeButton} onClick={() => setRechargeOpen(true)}>
-              {t('recharge.entry')}
-            </button>
-            <button type="button" className={styles.rechargeButton} onClick={() => setWithdrawalOpen(true)}>
-              支付宝提现
-            </button>
-            <button type="button" className={styles.inviteButton} onClick={() => setReferralOpen(true)}>
-              {t('referral.entry')}
-            </button>
-            <button type="button" onClick={() => setApiKeysOpen(true)}>
-              {t('apiKeys.entry')}
-            </button>
-            <button type="button" onClick={onLogout}>
-              {t('auth.logout')}
-            </button>
+            <details className={styles.accountMenu} ref={accountMenuRef}>
+              <summary aria-label={t('auth.accountMenu')} title={t('auth.accountMenu')}>⋯</summary>
+              <div className={styles.accountMenuPanel}>
+                <button type="button" onClick={() => openFromAccountMenu(() => setRechargeOpen(true))}>
+                  {t('recharge.entry')}
+                </button>
+                <button type="button" onClick={() => openFromAccountMenu(() => setWithdrawalOpen(true))}>
+                  {t('withdrawal.entry')}
+                </button>
+                <button type="button" onClick={() => openFromAccountMenu(() => setReferralOpen(true))}>
+                  {t('referral.entry')}
+                </button>
+                <button type="button" onClick={() => openFromAccountMenu(() => setApiKeysOpen(true))}>
+                  {t('apiKeys.entry')}
+                </button>
+                <div className={styles.accountMenuDivider} />
+                <button type="button" className={styles.logoutMenuItem} onClick={() => void onLogout()}>
+                  {t('auth.logout')}
+                </button>
+              </div>
+            </details>
           </div>
         ) : (
           <Link className={styles.loginLink} href="/login">

@@ -72,14 +72,86 @@
 }
 
 .creditBalance {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   border-left: 1px solid var(--border);
   color: var(--accent-2);
   font-size: 12px;
-  line-height: 1;
+  line-height: 1.1;
   padding-left: 8px;
 }
 
-.accountPill button {
+.accountMenu {
+  position: relative;
+}
+
+.accountMenu summary {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  list-style: none;
+  user-select: none;
+}
+
+.accountMenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.accountMenu summary:hover,
+.accountMenu[open] summary {
+  color: var(--text);
+}
+
+.accountMenuPanel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  width: 150px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+.accountPill .accountMenuPanel button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.accountPill .accountMenuPanel button:hover {
+  background: var(--panel-2);
+}
+
+.accountMenuDivider {
+  height: 1px;
+  margin: 5px 4px;
+  background: var(--border);
+}
+
+.accountPill .accountMenuPanel .logoutMenuItem {
+  color: var(--danger);
+}
+
+/* Buttons outside the account dropdown. */
+.accountPill > button {
   border: 0;
   border-radius: 999px;
   background: var(--bg);
@@ -88,26 +160,8 @@
   padding: 3px 8px;
 }
 
-.accountPill button:hover {
+.accountPill > button:hover {
   color: var(--text);
-}
-
-.accountPill .rechargeButton {
-  background: rgba(43, 212, 160, 0.14);
-  color: var(--accent-2);
-}
-
-.accountPill .rechargeButton:hover {
-  background: rgba(43, 212, 160, 0.24);
-}
-
-.accountPill .inviteButton {
-  background: rgba(79, 140, 255, 0.16);
-  color: #9fc0ff;
-}
-
-.accountPill .inviteButton:hover {
-  background: rgba(79, 140, 255, 0.28);
 }
 
 .dot {

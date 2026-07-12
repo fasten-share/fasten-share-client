@@ -18,6 +18,8 @@ export const zh: Record<keyof typeof en, string> = {
   'auth.consumerCredits': '消费积分：{balance}',
   'auth.producerCredits': '生产积分：{balance}',
   'auth.logout': '退出',
+  'auth.accountMenu': '账户菜单',
+  'withdrawal.entry': '提现',
   'auth.loginRegister': '登录 / 注册',
   'referral.entry': '邀请',
   'referral.title': '邀请好友',
