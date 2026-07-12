@@ -1,4 +1,4 @@
-import type { AuthError, AuthResponse, UserDto } from './auth-types';
+import type { AuthError, UserDto, WechatLoginResult, WechatLoginSession } from './auth-types';
 
 const TOKEN_STORAGE_KEY = 'fs.accessToken';
 const AUTH_NOTICE_STORAGE_KEY = 'fs.authNotice';
@@ -179,25 +179,39 @@ export async function loadMe(): Promise<UserDto | null> {
   return data.user;
 }
 
-export async function submitAuth(
-  action: 'login' | 'register',
-  body: {
-    email: string;
-    password: string;
-    agreementAccepted: true;
-    displayName?: string;
-    inviteCode?: string;
-  },
-): Promise<AuthResponse> {
-  const res = await fetch(`/api/auth/${action}`, {
+export async function createWechatLoginSession(body: {
+  agreementAccepted: true;
+  inviteCode?: string;
+  next?: string;
+  lang: 'cn' | 'en';
+}): Promise<WechatLoginSession> {
+  const res = await fetch('/api/auth/wechat/sessions', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw await toAuthError(res);
-  const data = (await res.json()) as AuthResponse;
+  return res.json() as Promise<WechatLoginSession>;
+}
+
+export async function exchangeWechatLogin(sessionId: string, clientToken: string): Promise<WechatLoginResult | null> {
+  const res = await fetch(`/api/auth/wechat/sessions/${encodeURIComponent(sessionId)}/exchange`, {
+    method: 'POST',
+    headers: { 'x-wechat-login-token': clientToken },
+  });
+  if (res.status === 202) return null;
+  if (!res.ok) throw await toAuthError(res);
+  const data = (await res.json()) as WechatLoginResult;
   setAccessToken(data.accessToken);
   return data;
+}
+
+export async function cancelWechatLogin(sessionId: string, clientToken: string): Promise<void> {
+  const res = await fetch(`/api/auth/wechat/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+    headers: { 'x-wechat-login-token': clientToken },
+  });
+  if (!res.ok && res.status !== 404) throw await toAuthError(res);
 }
 
 export async function logout(): Promise<void> {

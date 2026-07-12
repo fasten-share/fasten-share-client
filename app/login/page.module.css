@@ -31,31 +31,6 @@
   font-size: 30px;
 }
 
-.switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin: 22px 0;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg);
-}
-
-.switch button {
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 10px;
-}
-
-.switch button.active {
-  background: var(--panel-2);
-  color: var(--text);
-}
-
 .form {
   display: flex;
   flex-direction: column;
@@ -98,16 +73,6 @@
   cursor: pointer;
   font-weight: 700;
   padding: 12px;
-}
-
-.submitRow {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.submitRow .submit {
-  flex: 0 0 132px;
 }
 
 .agreement {
@@ -161,14 +126,20 @@
   color: var(--text);
 }
 
-@media (max-width: 520px) {
-  .submitRow {
-    align-items: stretch;
-    flex-direction: column;
-  }
+.hint, .privacy, .expired {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
 
-  .submitRow .submit {
-    flex-basis: auto;
-    width: 100%;
-  }
+.privacy { margin-top: 18px; line-height: 1.55; }
+.expired { color: var(--danger); }
+.qrStep { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: 18px; }
+.qrContainer { width: 240px; min-height: 240px; display: grid; place-items: center; overflow: hidden; border-radius: 12px; background: #fff; }
+.fallback { color: var(--accent-2); }
+.qrActions { display: flex; gap: 10px; }
+.qrActions button { border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); color: var(--text); cursor: pointer; padding: 9px 12px; }
+
+@media (max-width: 520px) {
+  .submit { width: 100%; }
 }

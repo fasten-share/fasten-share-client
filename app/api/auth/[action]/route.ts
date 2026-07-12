@@ -4,8 +4,6 @@ import { getCore } from '@/lib/server/core';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const AUTH_ACTIONS = new Set(['login', 'register']);
-
 interface RouteContext {
   params: Promise<{ action: string }>;
 }
@@ -46,13 +44,5 @@ export async function POST(req: Request, ctx: RouteContext): Promise<Response> {
     return Response.json({ accessToken });
   }
 
-  if (!AUTH_ACTIONS.has(action)) {
-    return Response.json({ error: 'not found' }, { status: 404 });
-  }
-
-  return proxyServer(`/api/v1/auth/${action}`, {
-    method: 'POST',
-    headers: { 'content-type': req.headers.get('content-type') || 'application/json' },
-    body: await req.text(),
-  });
+  return Response.json({ error: 'not found' }, { status: 404 });
 }

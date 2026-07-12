@@ -92,6 +92,31 @@ export interface AuthResponse {
   user: UserDto;
 }
 
+export interface WechatLoginSession {
+  sessionId: string;
+  clientToken: string;
+  expiresAt: string;
+  inviteCode: string | null;
+  next: string;
+  authorizeUrl: string;
+  wxLogin: {
+    appid: string;
+    scope: 'snsapi_login';
+    redirectUri: string;
+    state: string;
+    selfRedirect: true;
+    stylelite: 1;
+    colorScheme: 'auto';
+    lang: 'cn' | 'en';
+  };
+}
+
+export interface WechatLoginResult extends AuthResponse {
+  isNewUser: boolean;
+  inviteApplied: boolean;
+  next: string;
+}
+
 export interface AuthError {
   message: string;
   status: number;
