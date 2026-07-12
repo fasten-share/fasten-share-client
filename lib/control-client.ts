@@ -14,6 +14,7 @@ export interface BackendView {
   apiVersion?: string; // azure-openai only
   supportedTools?: ToolId[];
   versionPrefix?: string;
+  enabled?: boolean;
 }
 
 export interface BackendHealth {

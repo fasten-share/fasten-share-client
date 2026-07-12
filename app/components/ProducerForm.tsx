@@ -10,7 +10,7 @@ import {
   DISCLAIMER_ACCEPTED_KEY,
   emptyDraft,
   parseModels,
-  toCard,
+  producerCards,
   toInput,
   toStored,
   type Card,
@@ -30,7 +30,7 @@ export function ProducerForm({
   currentUserId: string;
 }) {
   const { t } = useI18n();
-  const initialCards = () => loadBackends(currentUserId).map(toCard);
+  const initialCards = () => producerCards(status.config.backends, loadBackends(currentUserId));
   const [cards, setCards] = useState<Card[]>(initialCards);
   // Ids that exist locally but were never added to the server yet (drafts).
   const [newIds, setNewIds] = useState<Set<string>>(new Set());

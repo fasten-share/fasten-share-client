@@ -1,4 +1,4 @@
-import type { BackendInput, StoredBackend } from '@/lib/control-client';
+import type { BackendInput, BackendView, StoredBackend } from '@/lib/control-client';
 import { normalizeMaxConcurrency } from '@/lib/concurrency';
 import { normalizeCostMultiplier } from '@/lib/cost';
 import { normalizeSupportedTools, type ToolId } from '@/lib/tool-support';
@@ -55,6 +55,28 @@ export function toCard(backend: StoredBackend): Card {
     supportedTools: normalizeSupportedTools(backend.supportedTools, backend.protocol),
     versionPrefix: versionPrefixOrDefault(backend.versionPrefix, backend.protocol),
   };
+}
+
+/**
+ * Build the producer cards from both copies of the configuration. The Node
+ * process owns the running producer, so its copy must be visible even when the
+ * browser storage was cleared. Browser storage is still useful for recovering
+ * the unmasked API key and for configs that have not been sent to Node yet.
+ */
+export function producerCards(remote: BackendView[], local: StoredBackend[]): Card[] {
+  const localById = new Map(local.map((backend) => [backend.id, backend]));
+  const cards = remote.map((backend) => {
+    const localBackend = localById.get(backend.id);
+    localById.delete(backend.id);
+    return toCard({
+      ...backend,
+      apiKey:
+        localBackend?.apiKey && localBackend.apiKey !== '***'
+          ? localBackend.apiKey
+          : backend.apiKey,
+    });
+  });
+  return [...cards, ...[...localById.values()].map(toCard)];
 }
 
 export function parseModels(text: string): string[] {
