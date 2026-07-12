@@ -123,6 +123,7 @@ export interface WechatLoginSession {
 }
 
 export interface WechatLoginResult extends AuthResponse {
+  encryptionKey: string;
   isNewUser: boolean;
   inviteApplied: boolean;
   next: string;

@@ -6,9 +6,52 @@ import { getCore } from '@/lib/server/core';
 import { readBearerToken, requireValidAccessToken } from '@/lib/server/auth';
 import type { BackendConfig } from '@/lib/server/types';
 import { normalizeVersionPrefix } from '@/lib/version-prefix';
+import type { EncryptedApiKey } from '@/lib/api-key-crypto-types';
+import { ENCRYPTION_SESSION_EXPIRED, INVALID_ENCRYPTED_API_KEY } from '@/lib/api-key-crypto-types';
+import { decryptApiKey, encryptApiKey } from '@/lib/server/api-key-crypto';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+type WireBackend = Omit<BackendConfig, 'apiKey'> & { encryptedApiKey?: EncryptedApiKey };
+
+function encryptionSession(req: Request): { token: string; key: string } | Response {
+  const token = readBearerToken(req);
+  const key = getCore().encryptionKeyForToken(token);
+  if (!token || !key) {
+    return Response.json({ error: ENCRYPTION_SESSION_EXPIRED, code: ENCRYPTION_SESSION_EXPIRED }, { status: 401 });
+  }
+  return { token, key };
+}
+
+function decryptBackend(backend: WireBackend, key: string): BackendConfig | undefined {
+  try {
+    return {
+      ...backend,
+      apiKey: backend.encryptedApiKey
+        ? decryptApiKey(backend.encryptedApiKey, key, backend.id, 'request')
+        : undefined,
+      encryptedApiKey: undefined,
+    } as BackendConfig;
+  } catch {
+    return undefined;
+  }
+}
+
+function securedStatus(key: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const status = getCore().status();
+  return {
+    ...status,
+    ...extra,
+    config: {
+      ...status.config,
+      backends: status.config.backends.map(({ apiKey, ...backend }) => ({
+        ...backend,
+        encryptedApiKey: apiKey ? encryptApiKey(apiKey, key, backend.id, 'response') : undefined,
+      })),
+    },
+  };
+}
 
 function normalizeBackend(backend: BackendConfig): BackendConfig | undefined {
   const versionPrefix = normalizeVersionPrefix(backend.versionPrefix);
@@ -34,21 +77,25 @@ function duplicateOffering(backends: BackendConfig[]): string | undefined {
 export async function GET(req: Request): Promise<Response> {
   const authError = await requireValidAccessToken(req);
   if (authError) return authError;
+  const session = encryptionSession(req);
+  if (session instanceof Response) return session;
   const core = getCore();
-  core.setAccessToken(readBearerToken(req));
-  return Response.json(core.status());
+  core.setAccessToken(session.token);
+  return Response.json(securedStatus(session.key));
 }
 
 export async function POST(req: Request): Promise<Response> {
   const authError = await requireValidAccessToken(req);
   if (authError) return authError;
+  const session = encryptionSession(req);
+  if (session instanceof Response) return session;
   const core = getCore();
-  core.setAccessToken(readBearerToken(req));
+  core.setAccessToken(session.token);
   let body: {
     action?: string;
     url?: string;
-    backend?: BackendConfig;
-    backends?: BackendConfig[];
+    backend?: WireBackend;
+    backends?: WireBackend[];
     id?: string;
     enabled?: boolean;
     autoShare?: boolean;
@@ -73,22 +120,26 @@ export async function POST(req: Request): Promise<Response> {
       break;
     case 'addBackend': {
       if (!body.backend) return Response.json({ error: 'missing backend' }, { status: 400 });
-      const backend = normalizeBackend(body.backend);
+      const decrypted = decryptBackend(body.backend, session.key);
+      if (!decrypted) return Response.json({ error: INVALID_ENCRYPTED_API_KEY, code: INVALID_ENCRYPTED_API_KEY }, { status: 400 });
+      const backend = normalizeBackend(decrypted);
       if (!backend) return Response.json({ error: 'invalid version prefix' }, { status: 400 });
       const duplicate = duplicateOffering([...core.status().config.backends, backend]);
       if (duplicate) return Response.json({ error: `duplicate protocol + model: ${duplicate}` }, { status: 400 });
       const check = await core.addBackend(backend);
-      return Response.json({ ...core.status(), check });
+      return Response.json(securedStatus(session.key, { check }));
     }
     case 'updateBackend': {
       if (!body.backend?.id) return Response.json({ error: 'missing backend id' }, { status: 400 });
-      const backend = normalizeBackend(body.backend);
+      const decrypted = decryptBackend(body.backend, session.key);
+      if (!decrypted) return Response.json({ error: INVALID_ENCRYPTED_API_KEY, code: INVALID_ENCRYPTED_API_KEY }, { status: 400 });
+      const backend = normalizeBackend(decrypted);
       if (!backend) return Response.json({ error: 'invalid version prefix' }, { status: 400 });
       const existing = core.status().config.backends;
       const duplicate = duplicateOffering(existing.map((item) => item.id === backend.id ? backend : item));
       if (duplicate) return Response.json({ error: `duplicate protocol + model: ${duplicate}` }, { status: 400 });
       const check = await core.updateBackend(backend);
-      return Response.json({ ...core.status(), check });
+      return Response.json(securedStatus(session.key, { check }));
     }
     case 'removeBackend':
       core.removeBackend(String(body.id ?? ''));
@@ -113,11 +164,15 @@ export async function POST(req: Request): Promise<Response> {
         Number(body.page ?? 1),
         Number(body.pageSize ?? 20),
       );
-      return Response.json({ ...core.status(), ...list });
+      return Response.json(securedStatus(session.key, list));
     }
     case 'setBackends':
       {
-        const backends = (body.backends ?? []).map(normalizeBackend);
+        const decrypted = (body.backends ?? []).map((backend) => decryptBackend(backend, session.key));
+        if (decrypted.some((backend) => !backend)) {
+          return Response.json({ error: INVALID_ENCRYPTED_API_KEY, code: INVALID_ENCRYPTED_API_KEY }, { status: 400 });
+        }
+        const backends = (decrypted as BackendConfig[]).map(normalizeBackend);
         if (backends.some((backend) => !backend)) {
           return Response.json({ error: 'invalid version prefix' }, { status: 400 });
         }
@@ -135,5 +190,5 @@ export async function POST(req: Request): Promise<Response> {
     default:
       return Response.json({ error: 'unknown action' }, { status: 400 });
   }
-  return Response.json(core.status());
+  return Response.json(securedStatus(session.key));
 }

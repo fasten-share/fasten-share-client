@@ -10,6 +10,7 @@ import { normalizeMaxConcurrency } from '../concurrency';
 import { versionPrefixOrDefault } from '../version-prefix';
 import { PRODUCER_WS_PATH } from './protocol-version';
 import { SERVICE_URL } from './service-url';
+import { generateApiKeyEncryptionKey } from './api-key-crypto';
 
 function producerWsUrl(serverUrl: string): string {
   const url = new URL(serverUrl);
@@ -38,6 +39,8 @@ export class Core {
   private accessToken: string | null = null;
   private activeUserId: string | null = null;
   private producerId: string | null = null;
+  private encryptionUserId: string | null = null;
+  private encryptionKey: string | null = null;
 
   constructor() {
     const cfg = config.all();
@@ -122,6 +125,29 @@ export class Core {
       this.startProducer();
     }
     this.pushStatus();
+  }
+
+  beginEncryptionSession(token: string): string {
+    const userId = tokenUserId(token);
+    if (!userId) throw new Error('invalid login token');
+    const key = generateApiKeyEncryptionKey();
+    this.encryptionUserId = userId;
+    this.encryptionKey = key;
+    this.setAccessToken(token);
+    return key;
+  }
+
+  encryptionKeyForToken(token: string | null): string | null {
+    const userId = token ? tokenUserId(token) : null;
+    return userId && userId === this.encryptionUserId ? this.encryptionKey : null;
+  }
+
+  clearEncryptionSession(token?: string | null): void {
+    const userId = token ? tokenUserId(token) : this.encryptionUserId;
+    if (userId && userId === this.encryptionUserId) {
+      this.encryptionUserId = null;
+      this.encryptionKey = null;
+    }
   }
 
   startProducer(): { ok: boolean; error?: string } {
@@ -247,7 +273,7 @@ export class Core {
       config: {
         signalUrl: cfg.serverUrl,
         autoShare: cfg.autoShare,
-        backends: cfg.backends.map((backend) => ({ ...backend, apiKey: backend.apiKey ? '***' : '' })),
+        backends: cfg.backends.map((backend) => ({ ...backend })),
       },
       connectedProducers: [],
     };

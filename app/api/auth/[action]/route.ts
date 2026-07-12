@@ -1,5 +1,6 @@
 import { bearerHeaders, proxyServer, readBearerToken } from '@/lib/server/auth';
 import { getCore } from '@/lib/server/core';
+import { ENCRYPTION_SESSION_EXPIRED } from '@/lib/api-key-crypto-types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,9 +16,14 @@ export async function GET(req: Request, ctx: RouteContext): Promise<Response> {
   const token = readBearerToken(req);
   if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
 
-  return proxyServer('/api/v1/auth/me', {
+  const upstream = await proxyServer('/api/v1/auth/me', {
     headers: bearerHeaders(token),
   });
+  if (!upstream.ok) return upstream;
+  if (!getCore().encryptionKeyForToken(token)) {
+    return Response.json({ error: ENCRYPTION_SESSION_EXPIRED, code: ENCRYPTION_SESSION_EXPIRED }, { status: 401 });
+  }
+  return upstream;
 }
 
 export async function POST(req: Request, ctx: RouteContext): Promise<Response> {
@@ -25,12 +31,16 @@ export async function POST(req: Request, ctx: RouteContext): Promise<Response> {
 
   if (action === 'logout') {
     // JWT logout is client-side state removal until refresh-token rotation exists.
+    getCore().clearEncryptionSession(readBearerToken(req));
     return Response.json({ ok: true });
   }
 
   if (action === 'refresh') {
     const token = readBearerToken(req);
     if (!token) return Response.json({ error: 'Missing bearer token.' }, { status: 401 });
+    if (!getCore().encryptionKeyForToken(token)) {
+      return Response.json({ error: ENCRYPTION_SESSION_EXPIRED, code: ENCRYPTION_SESSION_EXPIRED }, { status: 401 });
+    }
 
     const upstream = await proxyServer('/api/v1/auth/refresh', {
       method: 'POST',

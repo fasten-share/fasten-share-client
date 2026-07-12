@@ -1,4 +1,5 @@
 import type { AuthError, UserDto, WechatLoginResult, WechatLoginSession } from './auth-types';
+import { clearApiKeyEncryptionKey, setApiKeyEncryptionKey } from './api-key-crypto';
 
 const TOKEN_STORAGE_KEY = 'fs.accessToken';
 const AUTH_NOTICE_STORAGE_KEY = 'fs.authNotice';
@@ -19,6 +20,11 @@ export function setAccessToken(token: string): void {
 export function clearAccessToken(): void {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  clearApiKeyEncryptionKey();
+}
+
+export function clearAuthentication(): void {
+  clearAccessToken();
 }
 
 export function setAuthNotice(message: string): void {
@@ -202,7 +208,11 @@ export async function exchangeWechatLogin(sessionId: string, clientToken: string
   if (res.status === 202) return null;
   if (!res.ok) throw await toAuthError(res);
   const data = (await res.json()) as WechatLoginResult;
+  if (typeof data.encryptionKey !== 'string' || !data.encryptionKey) {
+    throw Object.assign(new Error('Login response did not contain an encryption key.'), { status: 502 });
+  }
   setAccessToken(data.accessToken);
+  setApiKeyEncryptionKey(data.encryptionKey);
   return data;
 }
 
@@ -216,11 +226,15 @@ export async function cancelWechatLogin(sessionId: string, clientToken: string):
 
 export async function logout(): Promise<void> {
   const token = getAccessToken();
-  clearAccessToken();
-  const res = await fetch('/api/auth/logout', {
-    method: 'POST',
-    headers: token ? { authorization: `Bearer ${token}` } : {},
-  });
+  let res: Response;
+  try {
+    res = await fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+  } finally {
+    clearAuthentication();
+  }
   if (!res.ok) throw await toAuthError(res);
 }
 

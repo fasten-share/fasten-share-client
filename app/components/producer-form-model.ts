@@ -69,7 +69,7 @@ export function toInput(card: Card): BackendInput {
     models: parseModels(card.modelsText),
     costMultiplier: normalizeCostMultiplier(card.costMultiplier),
     maxConcurrency: normalizeMaxConcurrency(card.maxConcurrency),
-    apiKey: card.apiKey && card.apiKey !== '***' ? card.apiKey : undefined,
+    apiKey: card.apiKey || undefined,
     apiVersion: card.protocol === 'azure-openai' ? card.apiVersion.trim() || undefined : undefined,
     enabled: card.enabled,
     supportedTools: normalizeSupportedTools(card.supportedTools, card.protocol),
