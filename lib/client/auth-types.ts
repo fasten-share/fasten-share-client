@@ -81,11 +81,22 @@ export interface UserDto {
   producerBalance: string;
   producerPendingDelta: string;
   producerAvailable: string;
+  withdrawableProducerBalance: string;
   escrow: string;
   stake: string;
   reputation: number;
   createdAt: string;
 }
+
+export type WithdrawalStatus = 'pending_review' | 'approved' | 'succeeded' | 'cancelled_refunded' | 'rejected_refunded';
+export interface WithdrawalDto {
+  id: string; requestNo: string; userId: string; amountCredits: string; amountFen: string; amountYuan: string;
+  payoutAccountMasked: string; payoutRecipientNameMasked: string; payoutAccount?: string; payoutRecipientName?: string;
+  status: WithdrawalStatus; applyDate: string; dailySequence: number; reviewNote: string | null;
+  transactionNo: string | null; reviewedAt: string | null; transferredAt: string | null;
+  refundedAt: string | null; cancelledAt: string | null; createdAt: string; updatedAt: string;
+}
+export interface WithdrawalPageDto { page: number; pageSize: number; total: number; data: WithdrawalDto[] }
 
 export interface AuthResponse {
   accessToken: string;

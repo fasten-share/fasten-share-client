@@ -21,6 +21,7 @@ import { ProducerForm } from './components/ProducerForm';
 import { ProducerBridge } from './components/ProducerBridge';
 import { RechargeModal } from './components/RechargeModal';
 import { ReferralModal } from './components/ReferralModal';
+import { WithdrawalModal } from './components/WithdrawalModal';
 import { SettingsModal } from './components/SettingsModal';
 import { MessageBox } from './components/MessageBox';
 import type { DiscoverFn, ProducerBridgeHandle } from '@/lib/client/status-link';
@@ -41,6 +42,7 @@ export default function Home() {
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [referralOpen, setReferralOpen] = useState(false);
+  const [withdrawalOpen, setWithdrawalOpen] = useState(false);
   // Auto-share preference. Persisted in localStorage, default ON. Not rendered
   // during SSR (the modal is closed), so a lazy initializer is hydration-safe.
   const [autoShare, setAutoShareState] = useState<boolean>(() =>
@@ -274,6 +276,9 @@ export default function Home() {
             <button type="button" className={styles.rechargeButton} onClick={() => setRechargeOpen(true)}>
               {t('recharge.entry')}
             </button>
+            <button type="button" className={styles.rechargeButton} onClick={() => setWithdrawalOpen(true)}>
+              支付宝提现
+            </button>
             <button type="button" className={styles.inviteButton} onClick={() => setReferralOpen(true)}>
               {t('referral.entry')}
             </button>
@@ -374,6 +379,13 @@ export default function Home() {
         <RechargeModal
           onClose={() => setRechargeOpen(false)}
           onPaid={(nextUser) => setUser(nextUser)}
+        />
+      )}
+      {withdrawalOpen && user && (
+        <WithdrawalModal
+          user={user}
+          onClose={() => setWithdrawalOpen(false)}
+          onChanged={async () => { const next = await loadMe(); if (next) setUser(next); }}
         />
       )}
     </div>

@@ -1,0 +1,11 @@
+.modal { width: min(760px, 94vw); max-height: 90vh; overflow: auto; }
+.balance { padding: 12px; margin: 12px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+.form { display: grid; gap: 10px; }
+.form label { display: grid; gap: 5px; }
+.form input { width: 100%; }
+.history { display: grid; gap: 10px; }
+.record { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+.record > div { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.record small { color: var(--muted); }
+.record p { margin: 7px 0; overflow-wrap: anywhere; }
+.record code { overflow-wrap: anywhere; }

@@ -5,7 +5,40 @@ import type {
   RechargeOrder,
   ReferralDto,
   ReferralPayoutPageDto,
+  WithdrawalDto,
+  WithdrawalPageDto,
 } from './auth-types';
+
+export async function createWithdrawal(body: { amountCredits: string; payoutAccount: string; payoutRecipientName: string }): Promise<WithdrawalDto> {
+  const token = getAccessToken();
+  if (!token) throw { message: 'Missing bearer token.', status: 401 } satisfies AuthError;
+  const res = await fetch('/api/withdrawals', {
+    method: 'POST', cache: 'no-store',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'idempotency-key': crypto.randomUUID() },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) clearAccessToken();
+  if (!res.ok) throw await toAuthError(res);
+  return (await res.json()) as WithdrawalDto;
+}
+
+export async function loadWithdrawals(page = 1, pageSize = 20): Promise<WithdrawalPageDto> {
+  const token = getAccessToken();
+  if (!token) throw { message: 'Missing bearer token.', status: 401 } satisfies AuthError;
+  const res = await fetch(`/api/withdrawals?page=${page}&pageSize=${pageSize}`, { cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
+  if (res.status === 401) clearAccessToken();
+  if (!res.ok) throw await toAuthError(res);
+  return (await res.json()) as WithdrawalPageDto;
+}
+
+export async function cancelWithdrawal(id: string): Promise<WithdrawalDto> {
+  const token = getAccessToken();
+  if (!token) throw { message: 'Missing bearer token.', status: 401 } satisfies AuthError;
+  const res = await fetch(`/api/withdrawals/${encodeURIComponent(id)}/cancel`, { method: 'POST', cache: 'no-store', headers: { authorization: `Bearer ${token}` } });
+  if (res.status === 401) clearAccessToken();
+  if (!res.ok) throw await toAuthError(res);
+  return (await res.json()) as WithdrawalDto;
+}
 
 export async function createRechargeOrder(amountYuan: number): Promise<RechargeOrder> {
   const token = getAccessToken();
