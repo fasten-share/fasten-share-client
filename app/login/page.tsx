@@ -115,7 +115,7 @@ function LoginContent() {
         const result = await exchangeWechatLogin(session.sessionId, session.clientToken);
         if (stopped) return;
         if (result) {
-          if ('code' in result && result.code === 'DEVICE_LIMIT_EXCEEDED') {
+          if ('replacementToken' in result) {
             setDeviceLimit(result);
             return;
           }
