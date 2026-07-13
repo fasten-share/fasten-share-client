@@ -85,6 +85,10 @@ export function startStatusLink(
   }
 
   function onCommand(cmd: BridgeCommand): void {
+    if (cmd.t === 'forcedLogout') {
+      window.dispatchEvent(new CustomEvent('fs:forced-logout', { detail: cmd.code }));
+      return;
+    }
     if (cmd.t !== 'status') return; // config/register/etc. don't apply to a passive page
     const node = cmd.node;
     status = {

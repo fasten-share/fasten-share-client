@@ -41,11 +41,12 @@ export class Core {
   private producerId: string | null = null;
   private encryptionUserId: string | null = null;
   private encryptionKey: string | null = null;
+  private forcedLogoutCode: 'DEVICE_LIMIT_EXCEEDED' | null = null;
 
   constructor() {
     const cfg = config.all();
     this.link = getBrowserLink();
-    this.connection = new ProducerConnection(producerWsUrl(cfg.serverUrl));
+    this.connection = new ProducerConnection(producerWsUrl(cfg.serverUrl), cfg.deviceId);
     this.connection.on('open', () => {
       this.producer?.onSignalingOpen();
       this.pushStatus();
@@ -57,7 +58,15 @@ export class Core {
       this.pushStatus();
     });
     this.connection.on('error', (error) => console.warn('[producer-connection]', error.message));
-    this.link.on('connect', () => this.pushStatus());
+    this.connection.on('forcedLogout', () => {
+      this.forcedLogoutCode = 'DEVICE_LIMIT_EXCEEDED';
+      this.setAccessToken(null);
+      this.link.send({ t: 'forcedLogout', code: 'DEVICE_LIMIT_EXCEEDED' });
+    });
+    this.link.on('connect', () => {
+      if (this.forcedLogoutCode) this.link.send({ t: 'forcedLogout', code: this.forcedLogoutCode });
+      this.pushStatus();
+    });
     this.connection.start();
   }
 
@@ -106,6 +115,7 @@ export class Core {
       this.stopProducer();
       return;
     }
+    this.forcedLogoutCode = null;
     if (this.activeUserId !== userId) {
       this.stopProducer();
       this.activeUserId = userId;

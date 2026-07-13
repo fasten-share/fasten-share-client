@@ -129,6 +129,13 @@ export interface WechatLoginResult extends AuthResponse {
   next: string;
 }
 
+export interface DeviceLimitResult {
+  code: 'DEVICE_LIMIT_EXCEEDED';
+  replacementToken: string;
+  maxDevices: number;
+  devices: Array<{ deviceId: string; nodeId: string; deviceName: string; createdAt: string; lastLoginAt: string; lastSeenAt: string; online: boolean }>;
+}
+
 export interface AuthError {
   message: string;
   status: number;

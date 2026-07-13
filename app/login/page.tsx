@@ -9,8 +9,10 @@ import {
   consumeAuthNotice,
   createWechatLoginSession,
   exchangeWechatLogin,
+  replaceDevice,
   type WechatLoginSession,
 } from '@/lib/client/auth';
+import type { DeviceLimitResult } from '@/lib/client/auth-types';
 import { useI18n } from '@/lib/i18n/context';
 import { UserAgreementModal } from './UserAgreementModal';
 import styles from './page.module.css';
@@ -68,6 +70,7 @@ function LoginContent() {
   const [scriptReady, setScriptReady] = useState(false);
   const [scriptFailed, setScriptFailed] = useState(false);
   const [remaining, setRemaining] = useState(0);
+  const [deviceLimit, setDeviceLimit] = useState<DeviceLimitResult | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -112,6 +115,10 @@ function LoginContent() {
         const result = await exchangeWechatLogin(session.sessionId, session.clientToken);
         if (stopped) return;
         if (result) {
+          if ('code' in result && result.code === 'DEVICE_LIMIT_EXCEEDED') {
+            setDeviceLimit(result);
+            return;
+          }
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           router.push(safeNext(result.next || search.get('next')));
           router.refresh();
@@ -129,6 +136,24 @@ function LoginContent() {
     void poll();
     return () => { stopped = true; if (timer) window.clearTimeout(timer); };
   }, [router, search, session, t]);
+
+  const onReplaceDevice = useCallback(async (deviceId: string) => {
+    if (!deviceLimit) return;
+    setLoading(true);
+    setError('');
+    try {
+      const result = await replaceDevice(deviceLimit.replacementToken, deviceId);
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      router.push(safeNext(result.next || search.get('next')));
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('login.failure'));
+      setDeviceLimit(null);
+      setSession(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceLimit, router, search, t]);
 
   const clearSession = useCallback(async () => {
     const current = session;
@@ -180,7 +205,21 @@ function LoginContent() {
         <h1>{t('login.wechatTitle')}</h1>
         <p className="muted">{session ? t('login.scanDescription') : t('login.wechatDescription')}</p>
 
-        {!session ? (
+        {deviceLimit ? (
+          <div className={styles.qrStep}>
+            <h2>设备数量已达上限</h2>
+            <p className={styles.hint}>此账号最多可登录 {deviceLimit.maxDevices} 台设备，请选择一台设备下线。</p>
+            <div className={styles.deviceList}>
+              {deviceLimit.devices.map((device) => (
+                <button key={device.deviceId} type="button" disabled={loading} onClick={() => void onReplaceDevice(device.deviceId)}>
+                  <strong>{device.deviceName}</strong>
+                  <span>{device.online ? '在线' : '离线'} · 节点 {device.nodeId.slice(0, 8)} · 最近在线 {new Date(device.lastSeenAt).toLocaleString()}</span>
+                </button>
+              ))}
+            </div>
+            {error && <div className={styles.error}>{error}</div>}
+          </div>
+        ) : !session ? (
           <form className={styles.form} onSubmit={onSubmit}>
             <label>
               {t('login.inviteCode')}

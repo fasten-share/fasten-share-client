@@ -6,6 +6,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import type { BackendConfig, NodeConfig } from './types';
 import { normalizeCostMultiplier } from '../cost';
@@ -83,6 +84,8 @@ function read(): NodeConfig {
   }
 
   const cfg: NodeConfig = {
+    deviceId: stored.deviceId || randomUUID(),
+    deviceName: stored.deviceName || hostname().slice(0, 120) || 'Unknown device',
     // Service selection is no longer configurable; migrate persisted legacy URLs.
     serverUrl: SERVICE_URL,
     autoShare: stored.autoShare !== false,
@@ -99,7 +102,7 @@ function read(): NodeConfig {
 
   // Persist the migrated/seeded shape so the legacy `backend` key is dropped and
   // ids are stable across restarts.
-  if (!Array.isArray(stored.backends) || stored.serverUrl !== SERVICE_URL || stored.autoShare === undefined) write(cfg);
+  if (!stored.deviceId || !stored.deviceName || !Array.isArray(stored.backends) || stored.serverUrl !== SERVICE_URL || stored.autoShare === undefined) write(cfg);
   return cfg;
 }
 

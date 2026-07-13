@@ -1,5 +1,6 @@
 import { proxyServer } from '@/lib/server/auth';
 import { getCore } from '@/lib/server/core';
+import { config } from '@/lib/server/config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,8 +9,13 @@ export async function POST(req: Request, ctx: RouteContext<'/api/auth/wechat/ses
   const { sessionId } = await ctx.params;
   const upstream = await proxyServer(`/api/v1/auth/wechat/sessions/${encodeURIComponent(sessionId)}/exchange`, {
     method: 'POST',
-    headers: { 'x-wechat-login-token': req.headers.get('x-wechat-login-token') || '' },
+    headers: {
+      'x-wechat-login-token': req.headers.get('x-wechat-login-token') || '',
+      'x-device-id': config.all().deviceId,
+      'x-device-name': encodeURIComponent(config.all().deviceName),
+    },
   });
+  if (upstream.status === 409) return upstream;
   if (!upstream.ok || upstream.status === 202) return upstream;
   const data = (await upstream.json()) as Record<string, unknown>;
   if (typeof data.accessToken !== 'string' || !data.accessToken) {

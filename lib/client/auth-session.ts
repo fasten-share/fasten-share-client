@@ -1,4 +1,4 @@
-import type { AuthError, UserDto, WechatLoginResult, WechatLoginSession } from './auth-types';
+import type { AuthError, DeviceLimitResult, UserDto, WechatLoginResult, WechatLoginSession } from './auth-types';
 import { clearApiKeyEncryptionKey, setApiKeyEncryptionKey } from './api-key-crypto';
 
 const TOKEN_STORAGE_KEY = 'fs.accessToken';
@@ -200,12 +200,17 @@ export async function createWechatLoginSession(body: {
   return res.json() as Promise<WechatLoginSession>;
 }
 
-export async function exchangeWechatLogin(sessionId: string, clientToken: string): Promise<WechatLoginResult | null> {
+export async function exchangeWechatLogin(sessionId: string, clientToken: string): Promise<WechatLoginResult | DeviceLimitResult | null> {
   const res = await fetch(`/api/auth/wechat/sessions/${encodeURIComponent(sessionId)}/exchange`, {
     method: 'POST',
     headers: { 'x-wechat-login-token': clientToken },
   });
   if (res.status === 202) return null;
+  if (res.status === 409) {
+    const limited = await res.json() as DeviceLimitResult;
+    if (limited.code === 'DEVICE_LIMIT_EXCEEDED') return limited;
+    throw Object.assign(new Error('Login session was already consumed.'), { status: 409 });
+  }
   if (!res.ok) throw await toAuthError(res);
   const data = (await res.json()) as WechatLoginResult;
   if (typeof data.encryptionKey !== 'string' || !data.encryptionKey) {
@@ -213,6 +218,23 @@ export async function exchangeWechatLogin(sessionId: string, clientToken: string
   }
   setAccessToken(data.accessToken);
   setApiKeyEncryptionKey(data.encryptionKey);
+  return data;
+}
+
+export function forceDeviceLogout(): void {
+  setAuthNotice('该设备因账号设备节点超过数量上限，已退出登录。');
+  clearAuthentication();
+}
+
+export async function replaceDevice(replacementToken: string, targetDeviceId: string): Promise<WechatLoginResult> {
+  const res = await fetch('/api/auth/devices/replace', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ replacementToken, targetDeviceId }),
+  });
+  if (!res.ok) throw await toAuthError(res);
+  const data = await res.json() as WechatLoginResult;
+  setAccessToken(data.accessToken);
+  if (data.encryptionKey) setApiKeyEncryptionKey(data.encryptionKey);
   return data;
 }
 

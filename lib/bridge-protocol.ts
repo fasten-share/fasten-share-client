@@ -18,7 +18,7 @@ export type BridgeCommand = {
   connectedProducers: { protocol: string; peerId: string }[];
   // Node owns signaling, so it includes its state for the passive page to render.
   node: { signaling: { connected: boolean; peerId?: string } };
-};
+} | { t: 'forcedLogout'; code: 'DEVICE_LIMIT_EXCEEDED' };
 
 /** Default port for the local status channel; overridable via FS_WS_PORT. */
 export const DEFAULT_WS_PORT = 8087;

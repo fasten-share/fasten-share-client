@@ -21,6 +21,7 @@ type Events = {
   registered: (producerId: string) => void;
   request: (event: ProducerEvent) => void;
   error: (error: Error) => void;
+  forcedLogout: (code: string) => void;
 };
 
 export class ProducerConnection extends Emitter<Events> {
@@ -29,7 +30,7 @@ export class ProducerConnection extends Emitter<Events> {
   private retry?: ReturnType<typeof setTimeout>;
   private backoff = 1500;
 
-  constructor(private url: string) {
+  constructor(private url: string, private readonly deviceId: string) {
     super();
   }
 
@@ -56,7 +57,7 @@ export class ProducerConnection extends Emitter<Events> {
   register(authorization: string, offerings: Offering[]): boolean {
     return this.send({
       type: 'register', apiVersion: API_VERSION, wireVersion: WIRE_VERSION,
-      capabilities: PRODUCER_CAPABILITIES, authorization, offerings,
+      capabilities: PRODUCER_CAPABILITIES, authorization, offerings, deviceId: this.deviceId,
     });
   }
 
@@ -132,6 +133,10 @@ export class ProducerConnection extends Emitter<Events> {
         }
       } else if (message.type === 'registered') {
         this.emit('registered', String(message.producerId));
+      } else if (message.type === 'device.limit.logout') {
+        this.started = false;
+        this.emit('forcedLogout', String(message.code || 'DEVICE_LIMIT_EXCEEDED'));
+        ws.close(4410, 'DEVICE_LIMIT_EXCEEDED');
       } else if (typeof message.type === 'string' && message.type.startsWith('request.')) {
         this.emit('request', message as unknown as ProducerEvent);
       }

@@ -159,3 +159,6 @@
 @media (max-width: 520px) {
   .submit { width: 100%; }
 }
+.deviceList { display: grid; gap: 10px; }
+.deviceList button { display: grid; gap: 4px; text-align: left; padding: 14px; }
+.deviceList span { font-size: 12px; opacity: .72; }

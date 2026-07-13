@@ -45,6 +45,8 @@ export interface BackendConfig {
 }
 
 export interface NodeConfig {
+  deviceId: string;
+  deviceName: string;
   serverUrl: string;
   autoShare: boolean;
   producerIds: Record<string, string>;

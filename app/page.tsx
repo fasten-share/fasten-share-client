@@ -8,6 +8,7 @@ import {
   loadMe,
   loadConsumerApiKeys,
   logout,
+  forceDeviceLogout,
   renewAccessTokenIfNeeded,
   setAuthNotice,
   startAccessTokenRenewal,
@@ -163,6 +164,16 @@ export default function Home() {
     setApiKeys([]);
     setSelectedApiKeyId('');
     router.replace('/login');
+  }, [router]);
+
+  useEffect(() => {
+    const forced = () => {
+      forceDeviceLogout();
+      window.alert('该设备因账号设备节点超过数量上限，已退出登录。');
+      router.replace('/login');
+    };
+    window.addEventListener('fs:forced-logout', forced);
+    return () => window.removeEventListener('fs:forced-logout', forced);
   }, [router]);
 
   const closeAccountMenu = useCallback(() => {
