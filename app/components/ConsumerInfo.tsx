@@ -10,6 +10,7 @@ import { formatMultiplier, rowKey, targetKey } from './consumer-utils';
 import { CurlModal, ToolConfigModal } from './ConsumerToolModals';
 import { useConsumerInfoState } from './useConsumerInfoState';
 import { RatingStars } from './RatingStars';
+import { ConsumerSearchPanel } from './ConsumerSearchPanel';
 
 interface ConsumerInfoProps { status: Status; origin: string; discover: DiscoverFn; currentUserId: string; apiKeys: ConsumerApiKeyDto[]; selectedApiKeyId: string; onSelectApiKey: (id: string) => void; apiKeysLoading: boolean; apiKeysError: string }
 
@@ -18,166 +19,15 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
     onSelectApiKey, apiKeysLoading, apiKeysError } = props;
   const { t } = useI18n();
   const state = useConsumerInfoState({ status, discover, currentUserId, apiKeys, selectedApiKeyId, t });
-  const { searchScope, setSearchScope, keyword, setKeyword, protocol, setProtocol, rows, expanded, searching, searched, searchPage, searchTotal, selectedApiKey, followingUserIds, followedUsers, followedRatings, selectedFollowingUserIds, setSelectedFollowingUserIds, followingPage, followingTotal, followError, ratingDrafts, setRatingDrafts, ratingUserIds, ratingError, setRatingError, connected, searchPageCount, followingPageCount, runSearch, openFollowingPicker, onEnter, toggleExpanded, onToggleKey, onToggleFollow, onRate, toolConfig } = state;
+  const { searchScope, rows, expanded, searching, searched, searchPage, searchTotal,
+    selectedApiKey, followingUserIds, ratingDrafts, setRatingDrafts, ratingUserIds,
+    setRatingError, searchPageCount, runSearch, toggleExpanded, onToggleKey,
+    onToggleFollow, onRate, toolConfig } = state;
   const { copied, curlTarget, setCurlTarget, toolByTarget, setToolByTarget, configuringTarget, configuringTool, pendingInspection, toolConfigStage, toolBackups, restorePreview, toolConfigWorking, toolConfigMessage, toolConfigError, copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig, checkAndConfigureTool, showRestorePreview, restoreBackup } = toolConfig;
   return (
     <div>
-      <div className="card">
-        <h2>{t('consumer.findModel')}</h2>
-        <p className="muted">{t('consumer.description')}</p>
-        <div className={styles.scopeTabs} role="tablist" aria-label={t('consumer.searchScope')}>
-          <button
-            className={searchScope === 'all' ? styles.activeScopeTab : ''}
-            role="tab"
-            aria-selected={searchScope === 'all'}
-            onClick={() => {
-              setSearchScope('all');
-              void runSearch('all', 1);
-            }}
-          >
-            {t('consumer.allModels')}
-          </button>
-          <button
-            className={searchScope === 'following' ? styles.activeScopeTab : ''}
-            role="tab"
-            aria-selected={searchScope === 'following'}
-            onClick={() => {
-              setSearchScope('following');
-              void openFollowingPicker(1);
-            }}
-          >
-            {t('consumer.followingModels')}
-          </button>
-        </div>
-        {searchScope === 'all' ? (
-          <>
-            <div className="row">
-              <div>
-                <label>{t('consumer.modelName')}</label>
-                <input
-                  value={keyword}
-                  onChange={(e) => setKeyword(e.target.value)}
-                  onKeyDown={onEnter}
-                  placeholder={t('consumer.modelNamePlaceholder')}
-                />
-              </div>
-              <div>
-                <label>{t('consumer.protocol')}</label>
-                <select value={protocol} onChange={(e) => setProtocol(e.target.value)}>
-                  <option value="">{t('consumer.protocolAny')}</option>
-                  <option value="openai">openai</option>
-                  <option value="openai-response">openai-response</option>
-                  <option value="gemini">gemini</option>
-                  <option value="anthropic">anthropic</option>
-                  <option value="azure-openai">azure-openai</option>
-                  <option value="ollama">ollama</option>
-                </select>
-              </div>
-            </div>
-            <div className="actions">
-              <button onClick={() => void runSearch('all', 1)} disabled={!connected || searching}>
-                {searching ? t('consumer.searching') : t('consumer.search')}
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className={styles.followingPicker}>
-            <div className={styles.followingHeader}>
-              <label>{t('consumer.selectFollowingUser')}</label>
-              <span>
-                {t('consumer.selectedFollowingUsers', {
-                  selected: selectedFollowingUserIds.length,
-                  total: followedUsers.length,
-                })}
-              </span>
-            </div>
-            {followedUsers.length === 0 ? (
-              <div className={styles.followingEmpty}>{t('consumer.noFollowingUsers')}</div>
-            ) : (
-              <div className={styles.followingOptions}>
-                {followedUsers.map((user) => (
-                  <label className={styles.followingOption} key={user.userId}>
-                    <input
-                      type="checkbox"
-                      checked={selectedFollowingUserIds.includes(user.userId)}
-                      onChange={(e) => {
-                        setSelectedFollowingUserIds((current) =>
-                          e.target.checked
-                            ? [...current, user.userId]
-                            : current.filter((userId) => userId !== user.userId),
-                        );
-                      }}
-                    />
-                    <span className={styles.followingName}>
-                      {user.username || t('consumer.unnamedUser')}
-                    </span>
-                    <span className={styles.followingMetrics}>
-                      <span className={styles.followerMetric}>
-                        {t('consumer.followers')}: {user.followerCount}
-                      </span>
-                      <span className={styles.callCountMetric}>
-                        {t('consumer.callCount')}: {user.callCount}
-                      </span>
-                      <span className={styles.ratingMetric}>
-                        {t('consumer.rating')}:{' '}
-                        {(followedRatings.get(user.userId) ?? 0) > 0
-                          ? t('consumer.ratingValue', {
-                              rating: (followedRatings.get(user.userId) ?? 0).toFixed(1),
-                            })
-                          : t('consumer.noRating')}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
-            {followingTotal > 0 && (
-              <div className={styles.pagination}>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={searching || followingPage <= 1}
-                  onClick={() => void openFollowingPicker(followingPage - 1)}
-                >
-                  {t('consumer.previousPage')}
-                </button>
-                <span>
-                  {t('consumer.pageInfo', {
-                    page: followingPage,
-                    pages: followingPageCount,
-                    total: followingTotal,
-                  })}
-                </span>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={searching || followingPage >= followingPageCount}
-                  onClick={() => void openFollowingPicker(followingPage + 1)}
-                >
-                  {t('consumer.nextPage')}
-                </button>
-              </div>
-            )}
-            <div className="actions">
-              <button
-                onClick={() => void runSearch('following', 1)}
-                disabled={!connected || searching || selectedFollowingUserIds.length === 0}
-              >
-                {searching ? t('consumer.searching') : t('consumer.search')}
-              </button>
-            </div>
-          </div>
-        )}
-        {!connected && <div className="hint">{t('common.waitingSignaling')}</div>}
-        {apiKeysLoading && <div className="hint">{t('apiKeys.loading')}</div>}
-        {!apiKeysLoading && apiKeys.length === 0 && (
-          <div className="hint">{t('consumer.noApiKeys')}</div>
-        )}
-        {apiKeysError && <div className="hint err">{apiKeysError}</div>}
-        {followError && <div className="hint err">{followError}</div>}
-        {ratingError && <div className="hint err">{ratingError}</div>}
-      </div>
-
+      <ConsumerSearchPanel state={state} apiKeys={apiKeys} apiKeysLoading={apiKeysLoading} apiKeysError={apiKeysError} />
+      {/* Results stay separate from search controls so each can evolve independently. */}
       <div className="card">
         <h2>{t('consumer.results', { count: rows.length })}</h2>
         {!searched && <p className="muted">{t('consumer.searchToSee')}</p>}

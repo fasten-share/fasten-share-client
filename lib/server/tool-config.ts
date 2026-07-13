@@ -4,75 +4,10 @@ import { homedir, platform } from 'node:os';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import JSON5 from 'json5';
-import * as TOML from '@iarna/toml';
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { isToolId, type ToolId } from '../tool-support';
-
-export interface ToolConfigTarget {
-  tool: ToolId;
-  protocol: string;
-  model: string;
-  baseUrl: string;
-}
-
-export interface ConfigFileInspection {
-  path: string;
-  exists: boolean;
-}
-
-export interface EnvironmentConflict {
-  id: string;
-  name: string;
-  source: string;
-  value: string;
-  removable: boolean;
-  reason?: string;
-}
-
-export interface OAuthConflict {
-  id: string;
-  provider: string;
-  source: string;
-  removable: boolean;
-  reason?: string;
-}
-
-export interface ToolConfigInspection {
-  configPath: string;
-  configFiles: ConfigFileInspection[];
-  conflicts: string[];
-  environmentConflicts: EnvironmentConflict[];
-  oauthConflicts: OAuthConflict[];
-  clean: boolean;
-}
-
-export interface ToolConfigResult extends ToolConfigInspection {
-  backupPath?: string;
-}
-
-export interface ToolConfigCleanupResult extends ToolConfigInspection {
-  backupId?: string;
-  backupPath?: string;
-  removedConfigPaths: string[];
-  removedEnvironment: string[];
-  removedOAuth: string[];
-}
-
-export interface ToolConfigBackup {
-  id: string;
-  createdAt: string;
-  tool: Exclude<ToolId, 'curl'>;
-  path: string;
-}
-
-interface BackupManifest {
-  id: string;
-  createdAt: string;
-  tool: Exclude<ToolId, 'curl'>;
-  files: Array<{ path: string; backupName: string }>;
-  environment: Array<{ name: string; source: string; value: string; id: string; restoreValue: string }>;
-  metadataFiles?: Array<{ path: string; backupName: string }>;
-}
+import { assertSupportedTarget, updateToolConfig } from './tool-config-adapters';
+import type { BackupManifest, EnvironmentConflict, OAuthConflict, ToolConfigBackup, ToolConfigCleanupResult, ToolConfigInspection, ToolConfigResult, ToolConfigTarget } from './tool-config-types';
+export type { ConfigFileInspection, EnvironmentConflict, OAuthConflict, ToolConfigBackup, ToolConfigCleanupResult, ToolConfigInspection, ToolConfigResult, ToolConfigTarget } from './tool-config-types';
 
 const CONFLICTS: Record<ToolId, string[]> = {
   curl: [],
@@ -257,53 +192,7 @@ export function inspectToolConfig(tool: unknown): ToolConfigInspection {
   };
 }
 
-function assertSupported(target: ToolConfigTarget): void {
-  if (target.tool === 'claude' && target.protocol !== 'anthropic') throw new Error('Claude can only be configured for the anthropic protocol.');
-  if (target.tool === 'codex' && target.protocol !== 'openai-response') throw new Error('Codex can only be configured for the openai-response protocol.');
-  if (target.tool === 'opencode' && !['openai', 'openai-response'].includes(target.protocol)) throw new Error('OpenCode can only be configured for the openai or openai-response protocol.');
-  if (target.tool === 'claw' && target.protocol === 'azure-openai') throw new Error('OpenClaw Azure configuration is not supported yet.');
-  if (target.tool === 'hermes' && ['gemini', 'azure-openai'].includes(target.protocol)) throw new Error(`Hermes ${target.protocol} configuration is not supported yet.`);
-}
-
-function openClawApi(protocol: string): string { return protocol === 'openai-response' ? 'openai-responses' : protocol === 'anthropic' ? 'anthropic-messages' : protocol === 'gemini' ? 'google-generative-ai' : 'openai-completions'; }
-function hermesApiMode(protocol: string): string { return protocol === 'openai-response' ? 'codex_responses' : protocol === 'anthropic' ? 'anthropic_messages' : 'chat_completions'; }
 function object(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-
-function updateClaude(raw: string, target: ToolConfigTarget, token: string): string {
-  const root = raw.trim() ? object(JSON5.parse(raw)) : {}; const env = object(root.env); delete env.ANTHROPIC_AUTH_TOKEN;
-  root.env = { ...env, ANTHROPIC_BASE_URL: target.baseUrl, ANTHROPIC_API_KEY: token, ANTHROPIC_MODEL: target.model, CLAUDE_CODE_SIMPLE: '1' };
-  return `${JSON.stringify(root, null, 2)}\n`;
-}
-function updateCodex(raw: string, target: ToolConfigTarget, token: string): string {
-  const root = raw.trim() ? TOML.parse(raw) as Record<string, unknown> : {}; root.model = target.model; root.model_provider = 'fasten-share'; root.forced_login_method = 'api';
-  const providers = object(root.model_providers); const provider = object(providers['fasten-share']); delete provider.env_key; delete provider.experimental_bearer_token; delete provider.requires_openai_auth; delete provider.auth;
-  providers['fasten-share'] = { ...provider, name: 'Fasten Share', base_url: target.baseUrl, wire_api: 'responses', http_headers: { Authorization: `Bearer ${token}` } }; root.model_providers = providers;
-  return TOML.stringify(root as Parameters<typeof TOML.stringify>[0]);
-}
-function updateOpenCode(raw: string, target: ToolConfigTarget, token: string): string {
-  const root = raw.trim() ? object(JSON5.parse(raw)) : {};
-  root.$schema = 'https://opencode.ai/config.json';
-  root.model = `fasten-share/${target.model}`;
-  root.small_model = `fasten-share/${target.model}`;
-  root.enabled_providers = ['fasten-share'];
-  root.disabled_providers = [];
-  root.provider = {
-    'fasten-share': {
-      npm: target.protocol === 'openai-response' ? '@ai-sdk/openai' : '@ai-sdk/openai-compatible',
-      name: 'Fasten Share',
-      options: { baseURL: target.baseUrl, apiKey: token },
-      models: { [target.model]: { name: target.model } },
-    },
-  };
-  return `${JSON.stringify(root, null, 2)}\n`;
-}
-function updateOpenClaw(raw: string, target: ToolConfigTarget, token: string): string {
-  const root = raw.trim() ? object(JSON5.parse(raw)) : {}; const models = object(root.models); const providers = object(models.providers);
-  providers['fasten-share'] = { ...object(providers['fasten-share']), baseUrl: target.baseUrl, apiKey: token, api: openClawApi(target.protocol), models: [{ id: target.model, name: target.model }] };
-  models.mode = 'replace'; models.providers = { 'fasten-share': providers['fasten-share'] }; root.models = models; const agents = object(root.agents); const defaults = object(agents.defaults); defaults.model = { ...object(defaults.model), primary: `fasten-share/${target.model}`, fallbacks: [] }; agents.defaults = defaults; root.agents = agents;
-  return `${JSON.stringify(root, null, 2)}\n`;
-}
-function updateHermes(raw: string, target: ToolConfigTarget, token: string): string { const root = raw.trim() ? object(parseYaml(raw)) : {}; root.model = { ...object(root.model), default: target.model, provider: 'custom', base_url: target.baseUrl, api_key: token, api_mode: hermesApiMode(target.protocol) }; delete root.fallback_model; root.fallback_providers = []; return stringifyYaml(root); }
 
 function backupName(path: string): string { return `${path}.fasten-share-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`; }
 function writeAtomically(path: string, content: string): string | undefined {
@@ -420,10 +309,10 @@ export function restoreToolConfig(tool: unknown, backupId: unknown): ToolConfigI
 }
 
 export function configureTool(target: ToolConfigTarget, apiKey: string): ToolConfigResult {
-  assertConfigurable(target.tool); if (!target.model.trim() || !target.baseUrl.trim()) throw new Error('missing model or endpoint'); assertSupported(target);
+  assertConfigurable(target.tool); if (!target.model.trim() || !target.baseUrl.trim()) throw new Error('missing model or endpoint'); assertSupportedTarget(target);
   const inspection = inspectToolConfig(target.tool); if (!inspection.clean) throw new Error('Remove all detected environment variables and current configuration files, then verify again before writing Fasten Share configuration.');
   const path = configPaths(target.tool)[0]; const raw = existsSync(path) ? readFileSync(path, 'utf8') : '';
-  const content = target.tool === 'claude' ? updateClaude(raw, target, apiKey) : target.tool === 'codex' ? updateCodex(raw, target, apiKey) : target.tool === 'opencode' ? updateOpenCode(raw, target, apiKey) : target.tool === 'claw' ? updateOpenClaw(raw, target, apiKey) : updateHermes(raw, target, apiKey);
+  const content = updateToolConfig(raw, target, apiKey);
   const backupPath = writeAtomically(path, content);
   const configured = inspectToolConfig(target.tool);
   return { ...configured, clean: true, backupPath };

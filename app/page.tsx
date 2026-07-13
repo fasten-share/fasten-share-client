@@ -1,21 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { control, type Status } from '@/lib/control-client';
-import {
-  loadMe,
-  loadConsumerApiKeys,
-  logout,
-  forceDeviceLogout,
-  renewAccessTokenIfNeeded,
-  setAuthNotice,
-  startAccessTokenRenewal,
-  type AuthError,
-  type ConsumerApiKeyDto,
-  type UserDto,
-} from '@/lib/client/auth';
+import { loadMe } from '@/lib/client/auth';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ConsumerInfo } from './components/ConsumerInfo';
 import { ProducerForm } from './components/ProducerForm';
@@ -25,20 +12,14 @@ import { ReferralModal } from './components/ReferralModal';
 import { WithdrawalModal } from './components/WithdrawalModal';
 import { SettingsModal } from './components/SettingsModal';
 import { MessageBox } from './components/MessageBox';
-import type { DiscoverFn, ProducerBridgeHandle } from '@/lib/client/status-link';
 import { useI18n } from '@/lib/i18n/context';
-import {
-  formatCreditBalance,
-  prepareAutoShare,
-  TAB_STORAGE_KEY,
-  type Tab,
-} from './home-utils';
+import { formatCreditBalance } from './home-utils';
+import { useHomeProducer } from './hooks/useHomeProducer';
+import { useHomeSession } from './hooks/useHomeSession';
+import { usePersistentTab } from './hooks/usePersistentTab';
 import styles from './page.module.css';
 
-const USER_REFRESH_INTERVAL_MS = 15 * 60_000;
-
 export default function Home() {
-  const router = useRouter();
   const { t, lang, setLang } = useI18n();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
@@ -46,164 +27,11 @@ export default function Home() {
   const [referralOpen, setReferralOpen] = useState(false);
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
-  const [autoShareNotice, setAutoShareNotice] = useState('');
-  // Remember the last tab the user selected (defaults to consumer). Read lazily
-  // so we don't touch localStorage during SSR.
-  const [tab, setTabState] = useState<Tab>('consumer');
-  useEffect(() => {
-    const saved = window.localStorage.getItem(TAB_STORAGE_KEY);
-    if (saved === 'consumer' || saved === 'producer') {
-      window.queueMicrotask(() => setTabState(saved));
-    }
-  }, []);
-  const setTab = useCallback((next: Tab) => {
-    setTabState(next);
-    window.localStorage.setItem(TAB_STORAGE_KEY, next);
-  }, []);
-  const [status, setStatus] = useState<Status | null>(null);
-  const [user, setUser] = useState<UserDto | null>(null);
-  const [apiKeys, setApiKeys] = useState<ConsumerApiKeyDto[]>([]);
-  const [selectedApiKeyId, setSelectedApiKeyId] = useState('');
-  const [apiKeysLoading, setApiKeysLoading] = useState(false);
-  const [apiKeysError, setApiKeysError] = useState('');
-  const [authLoading, setAuthLoading] = useState(true);
-  const [signalUrl, setSignalUrl] = useState('');
-  const [bridgeHandle, setBridgeHandle] = useState<ProducerBridgeHandle | null>(null);
-  const userRefreshInFlightRef = useRef(false);
-
-  useEffect(() => {
-    let alive = true;
-    let stopRenewal: (() => void) | undefined;
-
-    void (async () => {
-      try {
-        await renewAccessTokenIfNeeded();
-      } catch (error) {
-        if ((error as AuthError).status === 401 || (error as AuthError).status === 403) throw error;
-        // A temporary refresh failure must not discard a still-valid session.
-      }
-
-      return loadMe();
-    })()
-      .then((u) => {
-        if (!alive) return;
-        setUser(u);
-        if (!u) {
-          router.replace('/login');
-          return;
-        }
-        stopRenewal = startAccessTokenRenewal((error) => {
-          if (!alive) return;
-          if (error?.status === 403) setAuthNotice(error.message);
-          setUser(null);
-          router.replace('/login');
-        });
-      })
-      .catch((error: unknown) => {
-        if (alive) {
-          const authError = error as AuthError;
-          if (authError.status === 403) setAuthNotice(authError.message);
-          setUser(null);
-          router.replace('/login');
-        }
-      })
-      .finally(() => {
-        if (alive) setAuthLoading(false);
-      });
-    return () => {
-      alive = false;
-      stopRenewal?.();
-    };
-  }, [router]);
-
-  useEffect(() => {
-    if (!user?.id) {
-      return;
-    }
-
-    let alive = true;
-    window.queueMicrotask(() => {
-      if (!alive) return;
-      setApiKeysLoading(true);
-      setApiKeysError('');
-    });
-    void loadConsumerApiKeys()
-      .then((keys) => {
-        if (!alive) return;
-        setApiKeys(keys);
-        setSelectedApiKeyId((current) =>
-          keys.some((key) => key.id === current && !key.frozen)
-            ? current
-            : keys.find((key) => !key.frozen)?.id ?? '',
-        );
-      })
-      .catch((error: unknown) => {
-        if (!alive) return;
-        setApiKeys([]);
-        setSelectedApiKeyId('');
-        setApiKeysError((error as Error).message || t('apiKeys.loadFailed'));
-      })
-      .finally(() => {
-        if (alive) setApiKeysLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [t, user?.id]);
-
-  const updateApiKeys = useCallback((keys: ConsumerApiKeyDto[]) => {
-    setApiKeys(keys);
-    setApiKeysError('');
-    setSelectedApiKeyId((current) =>
-      keys.some((key) => key.id === current && !key.frozen)
-        ? current
-        : keys.find((key) => !key.frozen)?.id ?? '',
-    );
-  }, []);
-
-  const onLogout = useCallback(async () => {
-    await logout();
-    setUser(null);
-    setApiKeys([]);
-    setSelectedApiKeyId('');
-    router.replace('/login');
-  }, [router]);
-
-  const refreshUser = useCallback(async () => {
-    if (userRefreshInFlightRef.current) return;
-    userRefreshInFlightRef.current = true;
-    try {
-      const next = await loadMe();
-      if (next) {
-        setUser(next);
-      } else {
-        setUser(null);
-        router.replace('/login');
-      }
-    } catch {
-      // Keep the last known balance when a background refresh fails temporarily.
-    } finally {
-      userRefreshInFlightRef.current = false;
-    }
-  }, [router]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    const timer = window.setInterval(() => {
-      void refreshUser();
-    }, USER_REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [refreshUser, user?.id]);
-
-  useEffect(() => {
-    const forced = () => {
-      forceDeviceLogout();
-      window.alert('该设备因账号设备节点超过数量上限，已退出登录。');
-      router.replace('/login');
-    };
-    window.addEventListener('fs:forced-logout', forced);
-    return () => window.removeEventListener('fs:forced-logout', forced);
-  }, [router]);
+  const [tab, setTab] = usePersistentTab();
+  const { user, setUser, apiKeys, selectedApiKeyId, setSelectedApiKeyId,
+    apiKeysLoading, apiKeysError, authLoading, updateApiKeys, refreshUser, onLogout } = useHomeSession();
+  const { status, setStatus, signalUrl, setBridgeHandle, autoShareNotice,
+    onStatus, setAutoShare, discover } = useHomeProducer();
 
   const closeAccountMenu = useCallback(() => {
     accountMenuRef.current?.removeAttribute('open');
@@ -231,70 +59,6 @@ export default function Home() {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [closeAccountMenu]);
-
-  // Status is pushed by the local producer bridge (no polling). Seed the URL input
-  // once from the signaling URL the bridge learns from Node.
-  const onStatus = useCallback((s: Status) => {
-    setStatus(s);
-    setSignalUrl((cur) => (cur === '' ? s.config.signalUrl : cur));
-  }, []);
-
-  const setAutoShare = useCallback(async (next: boolean) => {
-    onStatus(await control({ action: 'setAutoShare', autoShare: next }));
-  }, [onStatus]);
-
-  // Auto-share once on load == "start all": if enabled and backend configs are
-  // stored by Node, force every saved backend on (enabled=true) and (health-gated)
-  // start sharing them — ignoring any per-backend stop from a previous session.
-  // Failed health checks are surfaced per-backend in the Producer form.
-  const autoShareDoneRef = useRef(false);
-  useEffect(() => {
-    if (!status?.config.autoShare || autoShareDoneRef.current) return;
-    if (!status || !status.signaling.connected || status.producer.running) return;
-    const stored = status.config.backends;
-    if (!stored.some((b) => b.models.length > 0)) return;
-    autoShareDoneRef.current = true;
-    const prepared = prepareAutoShare(stored);
-    const backends = prepared.backends;
-    void (async () => {
-      if (prepared.duplicate) {
-        setAutoShareNotice(t('producer.autoShareDuplicateSkipped', { offering: prepared.duplicate }));
-      }
-      try {
-        const s = await control({ action: 'setBackends', backends });
-        onStatus(s);
-        const failed = s.producer.backends.filter((b) => b.lastHealth && !b.lastHealth.ok);
-        if (failed.length) {
-          setAutoShareNotice(
-            t('producer.autoShareFailed', {
-              reason: failed[0].lastHealth?.reason ?? t('producer.healthReasonUnknown'),
-            }),
-          );
-        }
-      } catch {
-        setAutoShareNotice(
-          t('producer.autoShareFailed', { reason: t('producer.healthReasonUnknown') }),
-        );
-      }
-    })();
-  }, [status, onStatus, t]);
-
-  // Transport dropped (tab/bridge disconnect) -> Node stopped the producer
-  // (core.ts disconnect handler). Re-arm the one-shot auto-share so sharing
-  // resumes automatically once the transport reconnects (subject to the switch).
-  useEffect(() => {
-    if (status && !status.transport.ready) autoShareDoneRef.current = false;
-  }, [status]);
-
-  // The bridge (which owns the signaling socket) drives discovery for the
-  // Consumer search. Stable wrapper so ConsumerInfo doesn't re-render needlessly.
-  const discover = useCallback<DiscoverFn>(
-    (keyword, protocol, publisherUserIds, page, pageSize) =>
-      bridgeHandle
-        ? bridgeHandle.discover(keyword, protocol, publisherUserIds, page, pageSize)
-        : Promise.resolve({ candidates: [], page: page ?? 1, pageSize: pageSize ?? 20, total: 0 }),
-    [bridgeHandle],
-  );
 
   const connected = status?.signaling.connected ?? false;
 

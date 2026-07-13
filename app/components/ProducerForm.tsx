@@ -6,6 +6,7 @@ import { normalizeVersionPrefix } from '@/lib/version-prefix';
 import { useI18n } from '@/lib/i18n/context';
 import { SharingDisclaimerModal } from './SharingDisclaimerModal';
 import { BackendFields } from './ProducerBackendFields';
+import { ProducerBackendSidebar } from './ProducerBackendSidebar';
 import {
   DISCLAIMER_ACCEPTED_KEY,
   emptyDraft,
@@ -280,126 +281,19 @@ export function ProducerForm({
   // to the persisted config's `enabled`, which does not prove the daemon is live.
   const enabledOf = (id: string): boolean =>
     status.producer.backends.find((b) => b.id === id)?.enabled ?? false;
-  const anyEnabled = status.producer.backends.some((b) => b.enabled);
-  const anyChecking = status.producer.backends.some((b) => b.checking);
-  const anySaved = cards.some((c) => !newIds.has(c.id));
-
-  function labelFor(c: Card, i: number): string {
-    const model = parseModels(c.modelsText)[0] ?? '—';
-    return `[${i + 1}] ${c.protocol}/${model}`;
-  }
-
-  function healthTitle(h?: { ok: boolean; reason?: string }): string {
-    if (!h) return t('producer.healthReasonUnknown');
-    return h.ok
-      ? t('producer.healthOk')
-      : t('producer.healthFailed', { reason: h.reason ?? t('producer.healthReasonUnknown') });
-  }
-
   return (
     <div>
       <div className="card">
         <h2>{t('producer.backends')}</h2>
         <div className={styles.layout}>
-          {/* Left sidebar: backend list + add button at the top. */}
-          <div className={styles.sidebar}>
-            <button className={styles.fullWidth} onClick={addNew}>
-              ＋ {t('producer.addBackend')}
-            </button>
-            <div className={styles.backendList}>
-              {cards.length === 0 && <p className="muted small">{t('producer.noBackends')}</p>}
-              {cards.map((c, i) => {
-                const bh = status.producer.backends.find((b) => b.id === c.id);
-                const isDraft = newIds.has(c.id);
-                const enabled = bh?.enabled ?? false; // strictly from live status
-                const registered = status.producer.registered && !!bh?.advertised;
-                const health = bh?.lastHealth;
-                const healthClass = health ? (health.ok ? styles.ok : styles.error) : styles.unknown;
-                const statusClass =
-                  isDraft || !enabled
-                    ? styles.unknown
-                    : registered && health?.ok
-                      ? styles.ok
-                      : styles.warning;
-                return (
-                  <div
-                    key={c.id}
-                    className={`${styles.backendItem} ${selectedId === c.id ? styles.active : ''}`}
-                    onClick={() => setSelectedId(c.id)}
-                  >
-                    <div className={styles.backendItemBody}>
-                      <div className={styles.backendItemName} title={labelFor(c, i)}>
-                        {labelFor(c, i)}
-                      </div>
-                      <div className={styles.backendStatus}>
-                        <span className={styles.statusRow}>
-                          <span className={styles.statusLabel}>{t('producer.status')}</span>
-                          <span className={`${styles.healthDot} ${statusClass}`} />
-                        </span>
-                        <span className={styles.statusRow}>
-                          <span className={styles.statusLabel}>{t('producer.running')}</span>
-                          <span className={`${styles.healthDot} ${enabled ? styles.ok : styles.unknown}`} />
-                        </span>
-                        <span className={styles.statusRow}>
-                          <span className={styles.statusLabel}>{t('producer.registered')}</span>
-                          <span className={`${styles.healthDot} ${registered ? styles.ok : styles.unknown}`} />
-                        </span>
-                        <span className={styles.statusRow}>
-                          <span className={styles.statusLabel}>{t('producer.health')}</span>
-                          <span className={`${styles.healthDot} ${healthClass}`} title={healthTitle(health)} />
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className={styles.trash}
-                      aria-label={t('producer.removeBackend')}
-                      title={t('producer.removeBackend')}
-                      disabled={enabled || !!busyById[c.id] || !!allBusy}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void removeCard(c.id);
-                      }}
-                    >
-                      🗑
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            {anySaved &&
-              (anyEnabled || allBusy === 'stopping' ? (
-                <div className={styles.sidebarAction}>
-                  <button
-                    className={`danger ${styles.stopAll}`}
-                    onClick={() => setAllEnabled(false)}
-                    disabled={!connected || !!allBusy || anyChecking}
-                  >
-                    {allBusy === 'stopping'
-                      ? t('producer.stopping')
-                      : anyChecking
-                        ? t('producer.starting')
-                        : t('producer.stopAll')}
-                  </button>
-                  <button type="button" className={styles.disclaimerLink} onClick={viewDisclaimer}>
-                    {t('producer.disclaimerLink')}
-                  </button>
-                </div>
-              ) : (
-                <div className={styles.sidebarAction}>
-                  <button
-                    className={styles.stopAll}
-                    onClick={() => requestShare(() => setAllEnabled(true))}
-                    disabled={!connected || !!allBusy}
-                  >
-                    {allBusy === 'starting' ? t('producer.starting') : t('producer.startAll')}
-                  </button>
-                  <button type="button" className={styles.disclaimerLink} onClick={viewDisclaimer}>
-                    {t('producer.disclaimerLink')}
-                  </button>
-                </div>
-              ))}
-          </div>
+          <ProducerBackendSidebar
+            cards={cards} status={status} selectedId={selectedId} newIds={newIds}
+            busyById={busyById} allBusy={allBusy} connected={connected}
+            onAdd={addNew} onSelect={setSelectedId} onRemove={(id) => void removeCard(id)}
+            onSetAllEnabled={(enabled) => void setAllEnabled(enabled)}
+            onRequestStartAll={() => requestShare(() => setAllEnabled(true))}
+            onViewDisclaimer={viewDisclaimer}
+          />
 
           {/* Right detail panel: edit the selected backend. */}
           <div className={styles.detail}>

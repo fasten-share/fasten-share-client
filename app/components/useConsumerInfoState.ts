@@ -4,12 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { followUser, loadFollowingUsers, loadRatingStatuses, loadUserSummaries, rateUser, unfollowUser, type ConsumerApiKeyDto, type FollowedUserDto, type RatingStatusDto } from '@/lib/client/auth';
 import type { Status } from '@/lib/control-client';
 import type { DiscoverFn } from '@/lib/client/status-link';
-import type { Candidate } from '@/lib/server/types';
-import { normalizeSupportedTools } from '@/lib/tool-support';
-import { versionPrefixOrDefault } from '@/lib/version-prefix';
 import { PAGE_SIZE, type ConsumerRow as Row, type SearchScope } from './consumer-utils';
 import { useConsumerToolConfig } from './useConsumerToolConfig';
 import type { useI18n } from '@/lib/i18n/context';
+import { buildConsumerRows } from './consumer-row-builder';
 
 type Translate = ReturnType<typeof useI18n>['t'];
 
@@ -69,56 +67,13 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
       page,
       PAGE_SIZE,
     ).catch(() => ({ candidates: [], page, pageSize: PAGE_SIZE, total: 0 }));
-    const list: Candidate[] = result.candidates;
+    const list = result.candidates;
     const userIds = [...new Set(list.map((c) => c.userId).filter(Boolean))];
     const [userSummaries, ratingStatuses] = await Promise.all([
       loadUserSummaries(userIds).catch(() => new Map()),
       loadRatingStatuses(userIds).catch(() => new Map<string, RatingStatusDto>()),
     ]);
-    const followedByUserId = new Map(
-      currentFollowedUsers.map((user) => [user.userId, user]),
-    );
-    // Group producers by (protocol, model), keeping the matching peer nodes inside
-    // each row so users can choose the exact peerId to connect to.
-    const kwLower = scope === 'all' ? kw.toLowerCase() : '';
-    const byModel = new Map<string, Row>();
-    for (const c of list) {
-      for (const m of c.models) {
-        if (kwLower && !m.toLowerCase().includes(kwLower)) continue;
-        const key = `${c.protocol} ${m}`;
-        const row = byModel.get(key) ?? { model: m, protocol: c.protocol, nodes: [] };
-        if (!row.nodes.some((n) => n.peerId === c.peerId)) {
-          row.nodes.push({
-            peerId: c.peerId,
-            rttToServer: c.rttToServer,
-            onlineMs: c.onlineMs,
-            userId: c.userId,
-            username: userSummaries.get(c.userId)?.username ?? null,
-            followerCount:
-              followedByUserId.get(c.userId)?.followerCount ??
-              userSummaries.get(c.userId)?.followerCount ??
-              0,
-            callCount: userSummaries.get(c.userId)?.callCount ?? 0,
-            costMultiplier: c.costMultipliers?.[m] ?? 1,
-            following: scope === 'following' || followedByUserId.has(c.userId),
-            rating: ratingStatuses.get(c.userId)?.rating ?? 0,
-            rated: ratingStatuses.get(c.userId)?.rated ?? false,
-            myRating: ratingStatuses.get(c.userId)?.myRating ?? null,
-            supportedTools: normalizeSupportedTools(c.supportedTools?.[m], c.protocol),
-            versionPrefix: versionPrefixOrDefault(
-              c.versionPrefixes?.[m],
-              c.protocol,
-            ),
-          });
-        }
-        byModel.set(key, row);
-      }
-    }
-    const out = [...byModel.values()];
-    for (const row of out) {
-      row.nodes.sort((a, b) => a.rttToServer - b.rttToServer || b.onlineMs - a.onlineMs);
-    }
-    out.sort((a, b) => a.protocol.localeCompare(b.protocol) || a.model.localeCompare(b.model));
+    const out = buildConsumerRows(list, scope, kw, userSummaries, ratingStatuses, currentFollowedUsers);
     if (requestId !== searchRequest.current) return;
     setSearchPage(result.page);
     setSearchTotal(result.total);
@@ -322,3 +277,5 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     toggleExpanded, onToggleKey, onToggleFollow, onRate, toolConfig,
   };
 }
+
+export type ConsumerInfoState = ReturnType<typeof useConsumerInfoState>;

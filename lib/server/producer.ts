@@ -14,17 +14,13 @@
  */
 import { Emitter } from '../emitter';
 import type { BackendConfig, BackendStatus, ProducerStatus } from './types';
-import { sanitizeHeaders } from './headers';
-import { adapterFor } from './protocols';
 import { normalizeCostMultiplier } from '../cost';
-import { normalizeMaxConcurrency } from '../concurrency';
 import { ProducerConnection, type ProducerEvent } from './producer-connection';
-import { buildAdvertisedOfferings, joinUrl, probeHealth, type HealthResult } from './producer-health';
+import { buildAdvertisedOfferings, probeHealth, type HealthResult } from './producer-health';
+import { ProducerRequestRouter } from './producer-request-router';
 
 const HEARTBEAT_MS = 15_000;
 const HEALTH_MS = 30_000;
-const MAX_CHUNK_BYTES = 64 * 1024;
-const MAX_CONCURRENCY_MESSAGE = 'This producer node has reached its maximum concurrency limit.';
 
 /**
  * Join a producer base URL with a consumer or health-check path. The path is
@@ -54,15 +50,19 @@ export class ProducerDaemon extends Emitter<Events> {
   private checking = new Map<string, boolean>();
   private operation = new Map<string, number>();
   private failStreak = new Map<string, number>();
-  private activeRequests = new Map<string, Set<symbol>>();
-  private inbound = new Map<string, {
-    controller: ReadableStreamDefaultController<Uint8Array>;
-    abort: AbortController;
-  }>();
-  private readonly requestListener = (event: ProducerEvent) => this.onRequestEvent(event);
+  private readonly requestRouter: ProducerRequestRouter;
+  private readonly requestListener = (event: ProducerEvent) => this.requestRouter.handle(event);
   private readonly closeListener = () => this.onSignalingClose();
 
-  constructor(private connection: ProducerConnection) { super(); }
+  constructor(private connection: ProducerConnection) {
+    super();
+    this.requestRouter = new ProducerRequestRouter(
+      connection,
+      () => this.backends.values(),
+      (id) => this.advertise.get(id) === true,
+      (id) => this.markQuotaExceeded(id),
+    );
+  }
 
   status(): ProducerStatus {
     const backends: BackendStatus[] = [...this.backends.values()].map((b) => ({
@@ -97,7 +97,7 @@ export class ProducerDaemon extends Emitter<Events> {
     clearInterval(this.heartbeatTimer);
     clearInterval(this.healthTimer);
     if (this.registered) this.connection.deregister(reason);
-    this.abortInbound('producer stopped');
+    this.requestRouter.abortAll('producer stopped');
     this.registered = false;
     this.lastAdSig = '';
     this.emit('status', this.status());
@@ -126,15 +126,8 @@ export class ProducerDaemon extends Emitter<Events> {
     if (!this.running) return;
     this.registered = false;
     this.lastAdSig = '';
-    this.abortInbound('server connection closed');
+    this.requestRouter.abortAll('server connection closed');
     this.emit('status', this.status());
-  }
-
-  private abortInbound(reason: string): void {
-    for (const active of this.inbound.values()) {
-      active.abort.abort();
-      try { active.controller.error(new Error(reason)); } catch { /* already closed */ }
-    }
   }
 
   /* ----------------------------- backend control ---------------------------- */
@@ -285,145 +278,10 @@ export class ProducerDaemon extends Emitter<Events> {
     }
   }
 
-  /* --------------------------------- routing -------------------------------- */
-
-  /** Pick the backend serving (proto, model). Empty model (old consumer) only
-   *  resolves when exactly one backend serves the protocol. */
-  private selectBackend(proto: string, model: string): BackendConfig | undefined {
-    const forProto = [...this.backends.values()].filter(
-      (b) =>
-        b.protocol === proto &&
-        b.enabled !== false &&
-        this.advertise.get(b.id) === true,
-    );
-    if (model) return forProto.find((b) => b.models.includes(model));
-    return forProto.length === 1 ? forProto[0] : undefined;
-  }
-
-  private acquireRequestSlot(backend: BackendConfig): symbol | undefined {
-    const active = this.activeRequests.get(backend.id) ?? new Set<symbol>();
-    if (active.size >= normalizeMaxConcurrency(backend.maxConcurrency)) return undefined;
-    const token = Symbol(backend.id);
-    active.add(token);
-    this.activeRequests.set(backend.id, active);
-    return token;
-  }
-
-  private releaseRequestSlot(backendId: string, token: symbol): void {
-    const active = this.activeRequests.get(backendId);
-    if (!active) return;
-    active.delete(token);
-    if (active.size === 0) this.activeRequests.delete(backendId);
-  }
-
-  private onRequestEvent(event: ProducerEvent): void {
-    if (event.type === 'request.start') {
-      void this.startRequest(event).catch((error: unknown) => {
-        this.connection.respond({
-          type: 'response.error',
-          requestId: event.requestId,
-          data: {
-            message: error instanceof Error ? error.message : String(error),
-            code: 'UPSTREAM_ERROR',
-            status: 502,
-          },
-        });
-      });
-    } else if (event.type === 'request.chunk' && event.chunk) {
-      const active = this.inbound.get(event.requestId);
-      try { active?.controller.enqueue(event.chunk); } catch { /* late chunk */ }
-    } else if (event.type === 'request.end') {
-      const active = this.inbound.get(event.requestId);
-      try { active?.controller.close(); } catch { /* duplicate end */ }
-    } else if (event.type === 'request.cancel') {
-      const active = this.inbound.get(event.requestId);
-      active?.abort.abort();
-      try { active?.controller.error(new Error('request cancelled')); } catch { /* closed */ }
-    }
-  }
-
-  private async startRequest(event: ProducerEvent): Promise<void> {
-    const data = event.data ?? {};
-    const proto = String(data.protocol ?? '');
-    const model = String(data.model ?? '');
-    const method = String(data.method ?? 'POST').toUpperCase();
-    const path = String(data.path ?? '/');
-    const rawHeaders = data.headers && typeof data.headers === 'object'
-      ? data.headers as Record<string, string>
-      : {};
-    const send = (type: string, extra: Record<string, unknown> = {}) => {
-      if (!this.connection.respond({ type, requestId: event.requestId, ...extra })) {
-        throw new Error('server connection not open');
-      }
-    };
-    const backend = this.selectBackend(proto, model);
-    if (!backend) {
-      send('response.error', { data: { message: `no backend for '${proto}'/'${model}'`, code: 'BACKEND_NOT_FOUND' } });
-      return;
-    }
-    const adapter = adapterFor(backend.protocol);
-    const headers = sanitizeHeaders(rawHeaders);
-    for (const name of adapter.authHeaderNames) delete headers[name];
-    for (const [k, v] of Object.entries(adapter.authHeaders(backend))) {
-      if (k === 'anthropic-version' && headers['anthropic-version']) continue;
-      headers[k] = v;
-    }
-    const requestSlot = this.acquireRequestSlot(backend);
-    if (!requestSlot) {
-      send('response.error', {
-        data: { message: MAX_CONCURRENCY_MESSAGE, code: 'PRODUCER_MAX_CONCURRENCY', status: 429 },
-      });
-      return;
-    }
-    const abortController = new AbortController();
-    let bodyController!: ReadableStreamDefaultController<Uint8Array>;
-    const body = new ReadableStream<Uint8Array>({ start: (controller) => { bodyController = controller; } });
-    this.inbound.set(event.requestId, { controller: bodyController, abort: abortController });
-    let responseStatus: number | undefined;
-    try {
-      const init: RequestInit & { duplex?: 'half' } = {
-        method,
-        headers,
-        body: method === 'GET' || method === 'HEAD' ? undefined : body,
-        signal: abortController.signal,
-        duplex: 'half',
-      };
-      const res = await fetch(joinUrl(backend.baseUrl, path), init);
-      responseStatus = res.status;
-      const resHeaders: Record<string, string> = {};
-      res.headers.forEach((v, k) => (resHeaders[k] = v));
-      send('response.head', { data: { status: res.status, headers: sanitizeHeaders(resHeaders) } });
-      if (res.body) {
-        const reader = res.body.getReader();
-        for (;;) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          for (let off = 0; off < value.length; off += MAX_CHUNK_BYTES) {
-            const slice = value.subarray(off, off + MAX_CHUNK_BYTES);
-            if (!await this.connection.respondChunk(event.requestId, slice)) {
-              throw new Error('server connection not open');
-            }
-          }
-        }
-      }
-      send('response.end');
-    } catch (e) {
-      if (!abortController.signal.aborted) {
-        try {
-          send('response.error', {
-            data: { message: String((e as Error)?.message ?? e), code: 'UPSTREAM_ERROR' },
-          });
-        } catch { /* socket already closed */ }
-      }
-    } finally {
-      this.inbound.delete(event.requestId);
-      this.releaseRequestSlot(backend.id, requestSlot);
-    }
-    if (responseStatus === 402 || responseStatus === 429) {
-      this.health.set(backend.id, { ok: false, reason: 'QUOTA', at: Date.now() });
-      if (this.advertise.get(backend.id) !== false) this.emit('autodown', `${backend.id} QUOTA`);
-      this.advertise.set(backend.id, false);
-      this.syncRegistration();
-    }
+  private markQuotaExceeded(backendId: string): void {
+    this.health.set(backendId, { ok: false, reason: 'QUOTA', at: Date.now() });
+    if (this.advertise.get(backendId) !== false) this.emit('autodown', `${backendId} QUOTA`);
+    this.advertise.set(backendId, false);
+    this.syncRegistration();
   }
 }
