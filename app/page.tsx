@@ -35,6 +35,8 @@ import {
 } from './home-utils';
 import styles from './page.module.css';
 
+const USER_REFRESH_INTERVAL_MS = 15 * 60_000;
+
 export default function Home() {
   const router = useRouter();
   const { t, lang, setLang } = useI18n();
@@ -67,6 +69,7 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true);
   const [signalUrl, setSignalUrl] = useState('');
   const [bridgeHandle, setBridgeHandle] = useState<ProducerBridgeHandle | null>(null);
+  const userRefreshInFlightRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -165,6 +168,32 @@ export default function Home() {
     setSelectedApiKeyId('');
     router.replace('/login');
   }, [router]);
+
+  const refreshUser = useCallback(async () => {
+    if (userRefreshInFlightRef.current) return;
+    userRefreshInFlightRef.current = true;
+    try {
+      const next = await loadMe();
+      if (next) {
+        setUser(next);
+      } else {
+        setUser(null);
+        router.replace('/login');
+      }
+    } catch {
+      // Keep the last known balance when a background refresh fails temporarily.
+    } finally {
+      userRefreshInFlightRef.current = false;
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const timer = window.setInterval(() => {
+      void refreshUser();
+    }, USER_REFRESH_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [refreshUser, user?.id]);
 
   useEffect(() => {
     const forced = () => {
@@ -288,7 +317,14 @@ export default function Home() {
         {authLoading ? (
           <span className="muted">{t('auth.accountLoading')}</span>
         ) : user ? (
-          <div className={styles.accountPill}>
+          <div
+            className={styles.accountPill}
+            onClick={(event) => {
+              // Dropdown actions are outside the clickable account summary area.
+              if ((event.target as HTMLElement).closest(`.${styles.accountMenuPanel}`)) return;
+              void refreshUser();
+            }}
+          >
             <span title={user.id}>{user.displayName || t('auth.userFallback', { id: user.id })}</span>
             <span
               className={styles.creditBalance}
