@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { control, newBackendId, type Status } from '@/lib/control-client';
 import { normalizeVersionPrefix } from '@/lib/version-prefix';
 import { useI18n } from '@/lib/i18n/context';
@@ -33,18 +33,43 @@ export function ProducerForm({
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(() => initialCards()[0]?.id ?? null);
   const [msgById, setMsgById] = useState<Record<string, string>>({});
+  const [busyById, setBusyById] = useState<Record<string, 'starting' | 'stopping' | undefined>>({});
+  const [allBusy, setAllBusy] = useState<'starting' | 'stopping' | null>(null);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [requiresDisclaimerAcceptance, setRequiresDisclaimerAcceptance] = useState(false);
   const pendingShareRef = useRef<(() => Promise<void>) | null>(null);
 
   const connected = status.signaling.connected;
 
+  useEffect(() => {
+    setBusyById((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const [id, busy] of Object.entries(current)) {
+        const backend = status.producer.backends.find((item) => item.id === id);
+        if (busy === 'starting' && backend && !backend.checking) {
+          next[id] = undefined;
+          changed = true;
+          setMsgById((messages) => ({
+            ...messages,
+            [id]: backend.lastHealth?.ok
+              ? t('producer.savedStarted')
+              : t('producer.healthCheckFailed', {
+                  reason: backend.lastHealth?.reason ?? t('producer.healthReasonUnknown'),
+                }),
+          }));
+        } else if (busy === 'stopping' && backend?.enabled === false) {
+          next[id] = undefined;
+          changed = true;
+          setMsgById((messages) => ({ ...messages, [id]: t('producer.stopped') }));
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [status.producer.backends, t]);
+
   function patchCard(id: string, patch: Partial<Draft>): void {
     setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  }
-
-  function failMsg(reason?: string): string {
-    return t('producer.healthCheckFailed', { reason: reason ?? t('producer.healthReasonUnknown') });
   }
 
   function hasInvalidVersionPrefix(c: Card): boolean {
@@ -86,16 +111,20 @@ export function ProducerForm({
 
   async function addDraft(c: Card) {
     if (hasInvalidVersionPrefix(c) || hasDuplicateOffering(c)) return;
-    const s = await control({ action: 'addBackend', backend: toInput(c) });
-    onChanged(s);
-    const drafts = new Set(newIds);
-    drafts.delete(c.id);
-    setNewIds(drafts);
-    if (s.check && !s.check.ok) {
-      setMsgById((p) => ({ ...p, [c.id]: failMsg(s.check?.reason) }));
-      return;
+    setBusyById((p) => ({ ...p, [c.id]: 'starting' }));
+    setMsgById((p) => ({ ...p, [c.id]: t('producer.starting') }));
+    try {
+      const s = await control({ action: 'addBackend', backend: toInput(c) });
+      onChanged(s);
+      setNewIds((current) => {
+        const drafts = new Set(current);
+        drafts.delete(c.id);
+        return drafts;
+      });
+    } catch (error) {
+      setBusyById((p) => ({ ...p, [c.id]: undefined }));
+      setMsgById((p) => ({ ...p, [c.id]: `${t('producer.saveFailed')} ${(error as Error).message}` }));
     }
-    setMsgById((p) => ({ ...p, [c.id]: t('producer.savedStarted') }));
   }
 
   /** Save this backend and (re)start sharing it — re-runs its health gate. */
@@ -108,12 +137,14 @@ export function ProducerForm({
     const started: Card = { ...c, enabled: true };
     const next = cards.map((x) => (x.id === c.id ? started : x));
     setCards(next);
-    const s = await control({ action: 'updateBackend', backend: toInput(started) });
-    onChanged(s);
-    setMsgById((p) => ({
-      ...p,
-      [c.id]: s.check && !s.check.ok ? failMsg(s.check.reason) : t('producer.savedStarted'),
-    }));
+    setBusyById((p) => ({ ...p, [c.id]: 'starting' }));
+    setMsgById((p) => ({ ...p, [c.id]: t('producer.starting') }));
+    try {
+      onChanged(await control({ action: 'updateBackend', backend: toInput(started) }));
+    } catch (error) {
+      setBusyById((p) => ({ ...p, [c.id]: undefined }));
+      setMsgById((p) => ({ ...p, [c.id]: `${t('producer.saveFailed')} ${(error as Error).message}` }));
+    }
   }
 
   /** Stop sharing just this backend (config kept; takes it off the air). */
@@ -121,11 +152,20 @@ export function ProducerForm({
     const stopped: Card = { ...c, enabled: false };
     const next = cards.map((x) => (x.id === c.id ? stopped : x));
     setCards(next);
-    onChanged(await control({ action: 'setBackendEnabled', id: c.id, enabled: false }));
-    setMsgById((p) => ({ ...p, [c.id]: t('producer.stopped') }));
+    setBusyById((p) => ({ ...p, [c.id]: 'stopping' }));
+    setMsgById((p) => ({ ...p, [c.id]: t('producer.stopping') }));
+    try {
+      onChanged(await control({ action: 'setBackendEnabled', id: c.id, enabled: false }));
+    } catch (error) {
+      setCards((current) => current.map((item) => item.id === c.id ? c : item));
+      setBusyById((p) => ({ ...p, [c.id]: undefined }));
+      setMsgById((p) => ({ ...p, [c.id]: `${t('producer.stopFailed')} ${(error as Error).message}` }));
+    }
   }
 
   async function removeCard(id: string) {
+    const originalCards = cards;
+    const originalSelectedId = selectedId;
     const isDraft = newIds.has(id);
     const nextCards = cards.filter((c) => c.id !== id);
     const drafts = new Set(newIds);
@@ -133,11 +173,23 @@ export function ProducerForm({
     setCards(nextCards);
     setNewIds(drafts);
     if (selectedId === id) setSelectedId(nextCards[0]?.id ?? null);
-    if (!isDraft) onChanged(await control({ action: 'removeBackend', id }));
+    if (!isDraft) {
+      try {
+        onChanged(await control({ action: 'removeBackend', id }));
+      } catch (error) {
+        setCards(originalCards);
+        setSelectedId(originalSelectedId);
+        setNewIds(newIds);
+        setMsgById((p) => ({ ...p, [id]: `${t('producer.removeFailed')} ${(error as Error).message}` }));
+      }
+    }
   }
 
   /** Start or stop every saved backend at once (drafts are untouched). */
   async function setAllEnabled(enabled: boolean) {
+    if (allBusy) return;
+    const originalCards = cards;
+    setAllBusy(enabled ? 'starting' : 'stopping');
     const savedCards = cards.filter((c) => !newIds.has(c.id));
     if (enabled) {
       const offerings = new Set<string>();
@@ -160,7 +212,14 @@ export function ProducerForm({
       );
       setCards(next);
       const backends = next.filter((c) => !newIds.has(c.id)).map(toInput);
-      onChanged(await control({ action: 'setBackends', backends }));
+      try {
+        onChanged(await control({ action: 'setBackends', backends }));
+      } catch (error) {
+        setCards(originalCards);
+        setMsgById((current) => ({ ...current, [selectedId ?? '']: `${t('producer.saveFailed')} ${(error as Error).message}` }));
+      } finally {
+        setAllBusy(null);
+      }
       if (duplicate) {
         setSelectedId(duplicate.card.id);
         setMsgById((current) => ({
@@ -173,7 +232,14 @@ export function ProducerForm({
     const next = cards.map((c) => (newIds.has(c.id) ? c : { ...c, enabled }));
     setCards(next);
     const backends = next.filter((c) => !newIds.has(c.id)).map((c) => toInput({ ...c, enabled }));
-    onChanged(await control({ action: 'setBackends', backends }));
+    try {
+      onChanged(await control({ action: 'setBackends', backends }));
+    } catch (error) {
+      setCards(originalCards);
+      setMsgById((current) => ({ ...current, [selectedId ?? '']: `${t('producer.stopFailed')} ${(error as Error).message}` }));
+    } finally {
+      setAllBusy(null);
+    }
   }
 
   function requestShare(action: () => Promise<void>): void {
@@ -215,6 +281,7 @@ export function ProducerForm({
   const enabledOf = (id: string): boolean =>
     status.producer.backends.find((b) => b.id === id)?.enabled ?? false;
   const anyEnabled = status.producer.backends.some((b) => b.enabled);
+  const anyChecking = status.producer.backends.some((b) => b.checking);
   const anySaved = cards.some((c) => !newIds.has(c.id));
 
   function labelFor(c: Card, i: number): string {
@@ -288,7 +355,7 @@ export function ProducerForm({
                       className={styles.trash}
                       aria-label={t('producer.removeBackend')}
                       title={t('producer.removeBackend')}
-                      disabled={enabled}
+                      disabled={enabled || !!busyById[c.id] || !!allBusy}
                       onClick={(e) => {
                         e.stopPropagation();
                         void removeCard(c.id);
@@ -301,14 +368,18 @@ export function ProducerForm({
               })}
             </div>
             {anySaved &&
-              (anyEnabled ? (
+              (anyEnabled || allBusy === 'stopping' ? (
                 <div className={styles.sidebarAction}>
                   <button
                     className={`danger ${styles.stopAll}`}
                     onClick={() => setAllEnabled(false)}
-                    disabled={!connected}
+                    disabled={!connected || !!allBusy || anyChecking}
                   >
-                    {t('producer.stopAll')}
+                    {allBusy === 'stopping'
+                      ? t('producer.stopping')
+                      : anyChecking
+                        ? t('producer.starting')
+                        : t('producer.stopAll')}
                   </button>
                   <button type="button" className={styles.disclaimerLink} onClick={viewDisclaimer}>
                     {t('producer.disclaimerLink')}
@@ -319,9 +390,9 @@ export function ProducerForm({
                   <button
                     className={styles.stopAll}
                     onClick={() => requestShare(() => setAllEnabled(true))}
-                    disabled={!connected}
+                    disabled={!connected || !!allBusy}
                   >
-                    {t('producer.startAll')}
+                    {allBusy === 'starting' ? t('producer.starting') : t('producer.startAll')}
                   </button>
                   <button type="button" className={styles.disclaimerLink} onClick={viewDisclaimer}>
                     {t('producer.disclaimerLink')}
@@ -336,17 +407,19 @@ export function ProducerForm({
               <>
                 <BackendFields
                   value={selected}
-                  disabled={enabledOf(selected.id)}
+                  disabled={enabledOf(selected.id) || !!busyById[selected.id] || !!allBusy}
                   onChange={(patch) => patchCard(selected.id, patch)}
                 />
                 <div className="actions">
-                  {enabledOf(selected.id) ? (
-                    <button className="danger" onClick={() => stopOne(selected)} disabled={!connected}>
-                      {t('producer.stop')}
+                  {busyById[selected.id] === 'starting' ? (
+                    <button disabled>{t('producer.starting')}</button>
+                  ) : enabledOf(selected.id) ? (
+                    <button className="danger" onClick={() => stopOne(selected)} disabled={!connected || !!busyById[selected.id] || !!allBusy}>
+                      {busyById[selected.id] === 'stopping' ? t('producer.stopping') : t('producer.stop')}
                     </button>
                   ) : (
-                    <button onClick={() => requestShare(() => saveStart(selected))} disabled={!connected}>
-                      {t('producer.saveStart')}
+                    <button onClick={() => requestShare(() => saveStart(selected))} disabled={!connected || !!busyById[selected.id] || !!allBusy}>
+                      {busyById[selected.id] === 'starting' ? t('producer.starting') : t('producer.saveStart')}
                     </button>
                   )}
                   <button type="button" className={styles.disclaimerLink} onClick={viewDisclaimer}>

@@ -310,7 +310,12 @@ export const en = {
   'producer.supportedTools': 'Supported consumer tools',
   'producer.supportedToolsHint': 'At least one is required. Claude requires anthropic; Codex requires openai-response; OpenCode supports openai and openai-response.',
   'producer.saveStart': 'Save & start sharing',
+  'producer.starting': 'Starting…',
   'producer.stop': 'Stop sharing',
+  'producer.stopping': 'Stopping…',
+  'producer.saveFailed': 'Failed to save and start.',
+  'producer.stopFailed': 'Failed to stop sharing.',
+  'producer.removeFailed': 'Failed to remove backend.',
   'producer.disclaimerLink': 'Disclaimer',
   'producer.disclaimerTitle': 'Sharing disclaimer',
   'producer.disclaimerContent':

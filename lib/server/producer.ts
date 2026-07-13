@@ -51,6 +51,8 @@ export class ProducerDaemon extends Emitter<Events> {
   private backends = new Map<string, BackendConfig>();
   private health = new Map<string, BackendStatus['lastHealth']>(); // raw probe result (UI)
   private advertise = new Map<string, boolean>(); // whether the backend's models are advertised
+  private checking = new Map<string, boolean>();
+  private operation = new Map<string, number>();
   private failStreak = new Map<string, number>();
   private activeRequests = new Map<string, Set<symbol>>();
   private inbound = new Map<string, {
@@ -70,6 +72,7 @@ export class ProducerDaemon extends Emitter<Events> {
       costMultiplier: normalizeCostMultiplier(b.costMultiplier),
       enabled: b.enabled !== false,
       advertised: this.registered && this.advertise.get(b.id) === true,
+      checking: this.checking.get(b.id) === true,
       lastHealth: this.health.get(b.id),
     }));
     return { running: this.running, registered: this.registered, backends };
@@ -136,17 +139,21 @@ export class ProducerDaemon extends Emitter<Events> {
 
   /* ----------------------------- backend control ---------------------------- */
 
-  /** Add/replace one backend, gate it on a health probe, advertise if healthy. */
-  async addBackend(b: BackendConfig): Promise<HealthResult> {
+  /** Save immediately, then health-gate this backend without blocking control UI. */
+  addBackend(b: BackendConfig): void {
+    const operation = this.nextOperation(b.id);
     this.backends.set(b.id, b);
-    const r = await this.probeAndRecord(b);
+    this.health.delete(b.id);
+    this.advertise.set(b.id, false);
+    this.checking.set(b.id, b.enabled !== false);
+    this.failStreak.set(b.id, 0);
     this.syncRegistration();
-    return r;
+    if (b.enabled !== false) void this.probeAndRecord(b, operation);
   }
 
   /** Same gate as add; resets the failure streak for the (re)configured backend. */
-  updateBackend(b: BackendConfig): Promise<HealthResult> {
-    return this.addBackend(b);
+  updateBackend(b: BackendConfig): void {
+    this.addBackend(b);
   }
 
   removeBackend(id: string): void {
@@ -157,46 +164,67 @@ export class ProducerDaemon extends Emitter<Events> {
   /** Stop one backend (user action): keep its config but take it off the air.
    *  No health probe — it just stops being advertised until re-enabled. */
   disableBackend(id: string): void {
+    this.nextOperation(id);
     const b = this.backends.get(id);
     if (b) this.backends.set(id, { ...b, enabled: false });
     this.advertise.set(id, false);
+    this.checking.set(id, false);
     this.failStreak.set(id, 0);
     this.syncRegistration();
   }
 
-  /** Replace the whole backend set (page-driven auto-share). Gates each one. */
-  async setBackends(list: BackendConfig[]): Promise<void> {
+  /** Replace the whole set immediately; enabled backends are probed in background. */
+  setBackends(list: BackendConfig[]): void {
     const keep = new Set(list.map((b) => b.id));
     for (const id of [...this.backends.keys()]) if (!keep.has(id)) this.dropState(id);
-    await Promise.all(
-      list.map(async (b) => {
-        this.backends.set(b.id, b);
-        await this.probeAndRecord(b);
-      }),
-    );
+    const probes: Array<{ backend: BackendConfig; operation: number }> = [];
+    for (const b of list) {
+      const operation = this.nextOperation(b.id);
+      this.backends.set(b.id, b);
+      this.advertise.set(b.id, false);
+      this.checking.set(b.id, b.enabled !== false);
+      this.failStreak.set(b.id, 0);
+      if (b.enabled !== false) {
+        this.health.delete(b.id);
+        probes.push({ backend: b, operation });
+      }
+    }
     this.syncRegistration();
+    for (const probe of probes) void this.probeAndRecord(probe.backend, probe.operation);
   }
 
   private dropState(id: string): void {
+    this.nextOperation(id);
     this.backends.delete(id);
     this.health.delete(id);
     this.advertise.delete(id);
+    this.checking.delete(id);
     this.failStreak.delete(id);
   }
 
   /** Probe one backend and record its health + advertise decision (strict gate).
    *  A user-stopped backend is never probed/advertised. */
-  private async probeAndRecord(b: BackendConfig): Promise<HealthResult> {
+  private async probeAndRecord(b: BackendConfig, operation = this.operation.get(b.id) ?? 0): Promise<HealthResult> {
     if (b.enabled === false) {
       this.advertise.set(b.id, false);
+      this.checking.set(b.id, false);
       this.failStreak.set(b.id, 0);
       return { ok: true };
     }
     const r = await probeHealth(b);
+    if (this.operation.get(b.id) !== operation || this.backends.get(b.id) !== b) return r;
     this.health.set(b.id, { ok: r.ok, reason: r.reason, at: Date.now() });
     this.advertise.set(b.id, r.ok);
+    this.checking.set(b.id, false);
     this.failStreak.set(b.id, 0);
+    this.syncRegistration();
     return r;
+  }
+
+  private nextOperation(id: string): number {
+    const next = (this.operation.get(id) ?? 0) + 1;
+    this.operation.set(id, next);
+    return next;
   }
 
   /* ------------------------------- registration ----------------------------- */
@@ -239,7 +267,9 @@ export class ProducerDaemon extends Emitter<Events> {
 
   private async checkBackend(b: BackendConfig): Promise<void> {
     if (b.enabled === false) return; // user-stopped: don't probe or advertise
+    const operation = this.operation.get(b.id) ?? 0;
     const r = await probeHealth(b);
+    if (this.operation.get(b.id) !== operation || this.backends.get(b.id) !== b) return;
     this.health.set(b.id, { ok: r.ok, reason: r.reason, at: Date.now() });
     if (r.ok) {
       this.advertise.set(b.id, true);

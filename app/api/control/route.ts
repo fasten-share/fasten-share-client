@@ -126,8 +126,8 @@ export async function POST(req: Request): Promise<Response> {
       if (!backend) return Response.json({ error: 'invalid version prefix' }, { status: 400 });
       const duplicate = duplicateOffering([...core.status().config.backends, backend]);
       if (duplicate) return Response.json({ error: `duplicate protocol + model: ${duplicate}` }, { status: 400 });
-      const check = await core.addBackend(backend);
-      return Response.json(securedStatus(session.key, { check }));
+      core.addBackend(backend);
+      return Response.json(securedStatus(session.key));
     }
     case 'updateBackend': {
       if (!body.backend?.id) return Response.json({ error: 'missing backend id' }, { status: 400 });
@@ -138,8 +138,8 @@ export async function POST(req: Request): Promise<Response> {
       const existing = core.status().config.backends;
       const duplicate = duplicateOffering(existing.map((item) => item.id === backend.id ? backend : item));
       if (duplicate) return Response.json({ error: `duplicate protocol + model: ${duplicate}` }, { status: 400 });
-      const check = await core.updateBackend(backend);
-      return Response.json(securedStatus(session.key, { check }));
+      core.updateBackend(backend);
+      return Response.json(securedStatus(session.key));
     }
     case 'removeBackend':
       core.removeBackend(String(body.id ?? ''));
@@ -178,7 +178,7 @@ export async function POST(req: Request): Promise<Response> {
         }
         const duplicate = duplicateOffering(backends as BackendConfig[]);
         if (duplicate) return Response.json({ error: `duplicate protocol + model: ${duplicate}` }, { status: 400 });
-        await core.setBackends(backends as BackendConfig[]);
+        core.setBackends(backends as BackendConfig[]);
       }
       break;
     case 'startProducer':

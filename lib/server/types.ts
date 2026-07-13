@@ -62,6 +62,7 @@ export interface BackendStatus {
   costMultiplier: number;
   enabled: boolean;
   advertised: boolean;
+  checking: boolean;
   lastHealth?: { ok: boolean; reason?: string; at: number };
 }
 

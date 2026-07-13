@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getBrowserLink, type BrowserLink } from './browser-link';
 import { config } from './config';
 import { ProducerConnection } from './producer-connection';
-import { ProducerDaemon, type HealthResult } from './producer';
+import { ProducerDaemon } from './producer';
 import type { BackendConfig, Candidate, ProducerStatus } from './types';
 import { normalizeSupportedTools } from '../tool-support';
 import { normalizeCostMultiplier } from '../cost';
@@ -240,16 +240,16 @@ export class Core {
     );
   }
 
-  async addBackend(backend: BackendConfig): Promise<HealthResult> {
+  addBackend(backend: BackendConfig): void {
     const value = this.normalizeBackend(backend);
     this.save(value);
-    return this.ensureDaemon().addBackend(value);
+    this.ensureDaemon().addBackend(value);
   }
 
-  async updateBackend(backend: BackendConfig): Promise<HealthResult> {
+  updateBackend(backend: BackendConfig): void {
     const value = this.normalizeBackend(backend);
     this.save(value);
-    return this.ensureDaemon().updateBackend(value);
+    this.ensureDaemon().updateBackend(value);
   }
 
   removeBackend(id: string): void {
@@ -266,12 +266,12 @@ export class Core {
     else this.producer?.disableBackend(id);
   }
 
-  async setBackends(backends: BackendConfig[]): Promise<void> {
+  setBackends(backends: BackendConfig[]): void {
     const normalized = backends.map((backend) => this.normalizeBackend(backend));
     if (!this.activeUserId) throw new Error('missing authenticated account');
     config.setOwnedBackends(this.activeUserId, normalized);
     if (!normalized.length) return this.stopProducer();
-    await this.ensureDaemon().setBackends(normalized);
+    this.ensureDaemon().setBackends(normalized);
   }
 
   status() {

@@ -309,7 +309,12 @@ export const zh: Record<keyof typeof en, string> = {
   'producer.supportedTools': '支持的消费者工具',
   'producer.supportedToolsHint': '至少选择一项。Claude 仅支持 anthropic；Codex 仅支持 openai-response；OpenCode 支持 openai 与 openai-response。',
   'producer.saveStart': '保存并开始共享',
+  'producer.starting': '启动中…',
   'producer.stop': '停止共享',
+  'producer.stopping': '停止中…',
+  'producer.saveFailed': '保存并启动失败。',
+  'producer.stopFailed': '停止共享失败。',
+  'producer.removeFailed': '删除后端失败。',
   'producer.disclaimerLink': '免责声明',
   'producer.disclaimerTitle': '共享免责声明',
   'producer.disclaimerContent':

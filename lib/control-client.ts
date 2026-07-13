@@ -28,6 +28,7 @@ export interface BackendHealth {
   costMultiplier?: number;
   enabled: boolean;
   advertised: boolean;
+  checking: boolean;
   lastHealth?: { ok: boolean; reason?: string; at: number };
 }
 
@@ -37,8 +38,6 @@ export interface Status {
   producer: { running: boolean; registered: boolean; backends: BackendHealth[] };
   config: { signalUrl: string; autoShare: boolean; backends: BackendView[] };
   connectedProducers: { protocol: string; peerId: string }[];
-  // Only present on an add/updateBackend response: the pre-share health check.
-  check?: { ok: boolean; reason?: string };
 }
 
 export async function getStatus(): Promise<Status> {

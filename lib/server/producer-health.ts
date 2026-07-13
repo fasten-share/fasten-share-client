@@ -6,6 +6,7 @@ import type { BackendConfig, Offering } from './types';
 import { normalizeMaxConcurrency } from '../concurrency';
 
 export type HealthResult = { ok: boolean; reason?: string };
+const HEALTH_TIMEOUT_MS = 10_000;
 
 export function joinUrl(baseUrl: string, path: string): string {
   const base = baseUrl.replace(/\/+$/, '');
@@ -20,17 +21,21 @@ function joinVersionPath(versionPrefix: string, endpointPath: string): string {
 }
 
 export async function probeHealth(config: BackendConfig): Promise<HealthResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
   try {
     const { path, headers, body } = adapterFor(config.protocol).health(config);
     const versionPrefix = versionPrefixOrDefault(config.versionPrefix, config.protocol);
     const response = await fetch(joinUrl(config.baseUrl, joinVersionPath(versionPrefix, path)), {
-      method: 'POST', headers, body,
+      method: 'POST', headers, body, signal: controller.signal,
     });
     if (response.status === 401 || response.status === 403) return { ok: false, reason: 'AUTH' };
     if (response.status === 402 || response.status === 429) return { ok: false, reason: 'QUOTA' };
     return response.ok ? { ok: true } : { ok: false, reason: 'HTTP' };
   } catch {
     return { ok: false, reason: 'NETWORK' };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
