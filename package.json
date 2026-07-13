@@ -9,6 +9,9 @@
     "start2": "cross-env FS_WS_PORT=8027 next start -p 8026",
     "start3": "cross-env FS_WS_PORT=8037 next start -p 8036",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "export:desktop": "next build && shx cp -r .next/static .next/standalone/.next/static && shx cp -r public .next/standalone/public && shx rm -rf ../fasten-share-desktop/server-dist && shx cp -r .next/standalone ../fasten-share-desktop/server-dist"
   },
   "dependencies": {
@@ -28,11 +31,14 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ws": "^8.5.12",
+    "@vitest/coverage-v8": "^4.1.10",
     "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "jsdom": "^29.1.1",
     "shx": "^0.4.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
