@@ -41,15 +41,20 @@ describe('authenticated API clients', () => {
   });
 
   it('loads message/key collections and defaults absent arrays', async () => {
-    vi.stubGlobal('fetch', vi.fn()
+    const fetchMock = vi.fn()
       .mockResolvedValueOnce(Response.json({ messages: [{ id: 'm' }] }))
       .mockResolvedValueOnce(Response.json({}))
       .mockResolvedValueOnce(Response.json({ apiKeys: [{ id: 'k' }] }))
-      .mockResolvedValueOnce(Response.json({})));
+      .mockResolvedValueOnce(Response.json({}));
+    vi.stubGlobal('fetch', fetchMock);
     await expect(loadMessages()).resolves.toEqual([{ id: 'm' }]);
     await expect(loadMessages()).resolves.toEqual([]);
     await expect(loadConsumerApiKeys()).resolves.toEqual([{ id: 'k' }]);
     await expect(loadConsumerApiKeys()).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledWith('/api/messages', expect.objectContaining({
+      cache: 'no-store',
+      headers: expect.objectContaining({ authorization: 'Bearer token' }),
+    }));
   });
 
   it.each([

@@ -1,102 +1,68 @@
-import { clearAccessToken, getAccessToken, toAuthError } from './auth-session';
+import { authJson } from './auth-request';
+import { getAccessToken } from './auth-session';
 import type {
-  AuthError,
   FollowStatusDto,
   FollowingPageDto,
   RatingStatusDto,
   UserSummaryDto,
 } from './auth-types';
 
+async function optionalAuthJson<T>(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+): Promise<T | undefined> {
+  const token = getAccessToken();
+  if (!token) return undefined;
+  try {
+    return await authJson<T>(input, init, token);
+  } catch (error) {
+    if ((error as { status?: unknown }).status === 401) return undefined;
+    throw error;
+  }
+}
+
 export async function loadUserSummaries(userIds: string[]): Promise<Map<string, UserSummaryDto>> {
   const unique = [...new Set(userIds.filter(Boolean))];
   if (unique.length === 0) return new Map();
 
-  const token = getAccessToken();
-  if (!token) return new Map();
-
-  const res = await fetch('/api/users/summaries', {
+  const data = await optionalAuthJson<{ users?: UserSummaryDto[] }>('/api/users/summaries', {
     method: 'POST',
-    cache: 'no-store',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ userIds: unique }),
   });
-  if (res.status === 401) {
-    clearAccessToken();
-    return new Map();
-  }
-  if (!res.ok) throw await toAuthError(res);
-
-  const data = (await res.json()) as { users?: UserSummaryDto[] };
-  return new Map((data.users ?? []).map((user) => [user.userId, user]));
+  return new Map((data?.users ?? []).map((user) => [user.userId, user]));
 }
 
 export async function loadFollowStatus(publisherUserId: string): Promise<FollowStatusDto | null> {
-  const token = getAccessToken();
-  if (!token) return null;
-
-  const res = await fetch(`/api/social/follows/${encodeURIComponent(publisherUserId)}`, {
-    cache: 'no-store',
-    headers: { authorization: `Bearer ${token}` },
-  });
-  if (res.status === 401) {
-    clearAccessToken();
-    return null;
-  }
-  if (!res.ok) throw await toAuthError(res);
-  return (await res.json()) as FollowStatusDto;
+  return (
+    (await optionalAuthJson<FollowStatusDto>(
+      `/api/social/follows/${encodeURIComponent(publisherUserId)}`,
+    )) ?? null
+  );
 }
 
 export async function loadFollowingUsers(page = 1, pageSize = 20): Promise<FollowingPageDto> {
-  const token = getAccessToken();
-  if (!token) return { users: [], limit: 500, page, pageSize, total: 0 };
-
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-  const res = await fetch(`/api/social/follows?${params}`, {
-    cache: 'no-store',
-    headers: { authorization: `Bearer ${token}` },
-  });
-  if (res.status === 401) {
-    clearAccessToken();
-    return { users: [], limit: 500, page, pageSize, total: 0 };
-  }
-  if (!res.ok) throw await toAuthError(res);
-
-  const data = (await res.json()) as Partial<FollowingPageDto>;
+  const data = await optionalAuthJson<Partial<FollowingPageDto>>(`/api/social/follows?${params}`);
   return {
-    users: data.users ?? [],
-    limit: data.limit ?? 500,
-    page: data.page ?? page,
-    pageSize: data.pageSize ?? pageSize,
-    total: data.total ?? 0,
+    users: data?.users ?? [],
+    limit: data?.limit ?? 500,
+    page: data?.page ?? page,
+    pageSize: data?.pageSize ?? pageSize,
+    total: data?.total ?? 0,
   };
 }
 
 export async function followUser(publisherUserId: string): Promise<FollowStatusDto> {
-  const token = getAccessToken();
-  if (!token) throw { message: 'Missing bearer token.', status: 401 } satisfies AuthError;
-
-  const res = await fetch(`/api/social/follows/${encodeURIComponent(publisherUserId)}`, {
+  return authJson<FollowStatusDto>(`/api/social/follows/${encodeURIComponent(publisherUserId)}`, {
     method: 'POST',
-    cache: 'no-store',
-    headers: { authorization: `Bearer ${token}` },
   });
-  if (res.status === 401) clearAccessToken();
-  if (!res.ok) throw await toAuthError(res);
-  return (await res.json()) as FollowStatusDto;
 }
 
 export async function unfollowUser(publisherUserId: string): Promise<FollowStatusDto> {
-  const token = getAccessToken();
-  if (!token) throw { message: 'Missing bearer token.', status: 401 } satisfies AuthError;
-
-  const res = await fetch(`/api/social/follows/${encodeURIComponent(publisherUserId)}`, {
+  return authJson<FollowStatusDto>(`/api/social/follows/${encodeURIComponent(publisherUserId)}`, {
     method: 'DELETE',
-    cache: 'no-store',
-    headers: { authorization: `Bearer ${token}` },
   });
-  if (res.status === 401) clearAccessToken();
-  if (!res.ok) throw await toAuthError(res);
-  return (await res.json()) as FollowStatusDto;
 }
 
 export async function loadRatingStatuses(
@@ -105,39 +71,24 @@ export async function loadRatingStatuses(
   const unique = [...new Set(publisherUserIds.filter(Boolean))];
   if (unique.length === 0) return new Map();
 
-  const token = getAccessToken();
-  if (!token) return new Map();
-
-  const res = await fetch('/api/social/ratings/statuses', {
-    method: 'POST',
-    cache: 'no-store',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ publisherUserIds: unique }),
-  });
-  if (res.status === 401) {
-    clearAccessToken();
-    return new Map();
-  }
-  if (!res.ok) throw await toAuthError(res);
-
-  const data = (await res.json()) as { ratings?: RatingStatusDto[] };
-  return new Map((data.ratings ?? []).map((rating) => [rating.publisherUserId, rating]));
+  const data = await optionalAuthJson<{ ratings?: RatingStatusDto[] }>(
+    '/api/social/ratings/statuses',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ publisherUserIds: unique }),
+    },
+  );
+  return new Map((data?.ratings ?? []).map((rating) => [rating.publisherUserId, rating]));
 }
 
 export async function rateUser(
   publisherUserId: string,
   rating: number,
 ): Promise<RatingStatusDto> {
-  const token = getAccessToken();
-  if (!token) throw { message: 'Missing bearer token.', status: 401 } satisfies AuthError;
-
-  const res = await fetch(`/api/social/ratings/${encodeURIComponent(publisherUserId)}`, {
+  return authJson<RatingStatusDto>(`/api/social/ratings/${encodeURIComponent(publisherUserId)}`, {
     method: 'POST',
-    cache: 'no-store',
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ rating }),
   });
-  if (res.status === 401) clearAccessToken();
-  if (!res.ok) throw await toAuthError(res);
-  return (await res.json()) as RatingStatusDto;
 }
