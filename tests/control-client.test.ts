@@ -16,6 +16,7 @@ vi.mock('@/lib/client/auth-session', () => ({ clearAuthentication: mocks.clearAu
 import { control, discoverModels, getStatus, newBackendId } from '@/lib/control-client';
 
 const status = (encrypted = true) => ({
+  configRevision: 0,
   transport: { ready: true, wsPort: 8087 }, signaling: { connected: true },
   producer: { running: true, registered: true, backends: [] }, connectedProducers: [],
   config: {
@@ -44,7 +45,7 @@ describe('control client', () => {
     const fetchMock = vi.fn().mockImplementation(async () => Response.json(status(false)));
     vi.stubGlobal('fetch', fetchMock);
     await control({ action: 'updateBackend', backend: { id: 'b1', baseUrl: 'x', protocol: 'openai', models: ['m'], apiKey: 'sk' } });
-    await control({ action: 'setBackends', backends: [
+    await control({ action: 'setBackends', configRevision: 3, backends: [
       { id: 'b2', baseUrl: 'y', protocol: 'openai', models: ['n'], apiKey: 'key2' },
       { baseUrl: 'z', protocol: 'openai', models: [], apiKey: 'not-sent-without-id' },
     ] });
@@ -54,6 +55,7 @@ describe('control client', () => {
     expect(firstBody.backend).not.toHaveProperty('apiKey');
     expect(firstBody.backend.encryptedApiKey).toEqual({ version: 1, iv: 'iv-b1', ciphertext: 'sk' });
     const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(secondBody.configRevision).toBe(3);
     expect(secondBody.backends[1].encryptedApiKey).toBeUndefined();
   });
 

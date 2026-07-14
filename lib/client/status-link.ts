@@ -6,7 +6,7 @@
  *   - runs model discovery through the control API.
  */
 import { REPLACED_CODE, WS_PATH, type BridgeCommand } from '@/lib/bridge-protocol';
-import { discoverModels, type Status } from '@/lib/control-client';
+import { discoverModels, getStatus, type Status } from '@/lib/control-client';
 import type { Candidate } from '@/lib/server/types';
 
 /** Discover producers via Node (empty filters = all). */
@@ -43,6 +43,8 @@ export function startStatusLink(
   let retry: ReturnType<typeof setTimeout> | undefined;
   let backoff = 1000;
   let status: Status = seed;
+  let configRefresh: Promise<void> | undefined;
+  let requestedConfigRevision = seed.configRevision;
 
   function emit(): void {
     onStatus(status);
@@ -92,6 +94,27 @@ export function startStatusLink(
       return;
     }
     if (cmd.t !== 'status') return; // config/register/etc. don't apply to a passive page
+    if (cmd.configRevision !== status.configRevision) {
+      requestedConfigRevision = cmd.configRevision;
+      configRefresh ??= (async () => {
+        do {
+          const requestedAtStart = requestedConfigRevision;
+          const next = await getStatus();
+          if (stopped) return;
+          status = next;
+          emit();
+          if (
+            requestedConfigRevision === requestedAtStart ||
+            status.configRevision === requestedConfigRevision
+          ) {
+            return;
+          }
+        } while (!stopped);
+      })().catch(() => undefined).finally(() => {
+        configRefresh = undefined;
+      });
+      return;
+    }
     const node = cmd.node;
     status = {
       ...status,

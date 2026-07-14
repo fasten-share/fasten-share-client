@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const discoverMock = vi.hoisted(() => vi.fn(async () => ({ candidates: [], page: 1, pageSize: 20, total: 0 })));
-vi.mock('@/lib/control-client', () => ({ discoverModels: discoverMock }));
+const mocks = vi.hoisted(() => ({
+  discover: vi.fn(async () => ({ candidates: [], page: 1, pageSize: 20, total: 0 })),
+  getStatus: vi.fn(),
+}));
+vi.mock('@/lib/control-client', () => ({ discoverModels: mocks.discover, getStatus: mocks.getStatus }));
 
 import { DEFAULT_WS_PORT, REPLACED_CODE, WS_PATH } from '@/lib/bridge-protocol';
 import { startStatusLink } from '@/lib/client/status-link';
@@ -30,6 +33,7 @@ class FakeWebSocket {
 }
 
 const seed = (): Status => ({
+  configRevision: 0,
   transport: { ready: false, wsPort: DEFAULT_WS_PORT },
   signaling: { connected: false },
   producer: { running: false, registered: false, backends: [] },
@@ -40,6 +44,7 @@ const seed = (): Status => ({
 describe('status link', () => {
   beforeEach(() => {
     FakeWebSocket.instances = [];
+    mocks.getStatus.mockReset();
     vi.stubGlobal('WebSocket', FakeWebSocket);
   });
 
@@ -65,6 +70,7 @@ describe('status link', () => {
     expect(onStatus).toHaveBeenCalledTimes(1);
     socket.message(JSON.stringify({
       t: 'status',
+      configRevision: 0,
       producer: { running: true, registered: true, backends: [] },
       connectedProducers: [{ protocol: 'openai', peerId: 'p1' }],
       node: { signaling: { connected: true, peerId: 'node' } },
@@ -97,6 +103,7 @@ describe('status link', () => {
     handle.syncStatus(saved);
     FakeWebSocket.instances[0].message(JSON.stringify({
       t: 'status',
+      configRevision: 0,
       producer: { running: true, registered: true, backends: [] },
       connectedProducers: [],
       node: { signaling: { connected: true, peerId: 'node' } },
@@ -106,6 +113,56 @@ describe('status link', () => {
       config: saved.config,
       producer: expect.objectContaining({ running: true }),
     }));
+    handle.stop();
+  });
+
+  it('reloads the encrypted config when the Node revision changes', async () => {
+    const onStatus = vi.fn();
+    const refreshed = {
+      ...seed(),
+      configRevision: 1,
+      signaling: { connected: true, peerId: 'node' },
+      config: { ...seed().config, autoShare: true },
+    } satisfies Status;
+    mocks.getStatus.mockResolvedValue(refreshed);
+    const handle = startStatusLink(9000, onStatus, seed());
+    FakeWebSocket.instances[0].message(JSON.stringify({
+      t: 'status',
+      configRevision: 1,
+      producer: { running: true, registered: true, backends: [] },
+      connectedProducers: [],
+      node: { signaling: { connected: true, peerId: 'node' } },
+    }));
+
+    await vi.waitFor(() => expect(onStatus).toHaveBeenLastCalledWith(expect.objectContaining({
+      configRevision: 1,
+      config: expect.objectContaining({ autoShare: true }),
+      signaling: { connected: true, peerId: 'node' },
+    })));
+    expect(mocks.getStatus).toHaveBeenCalledOnce();
+    handle.stop();
+  });
+
+  it('accepts a reset config revision after the Node process restarts', async () => {
+    const onStatus = vi.fn();
+    const previousProcess = { ...seed(), configRevision: 5 } satisfies Status;
+    const restarted = {
+      ...seed(),
+      configRevision: 0,
+      config: { ...seed().config, autoShare: true },
+    } satisfies Status;
+    mocks.getStatus.mockResolvedValue(restarted);
+    const handle = startStatusLink(9000, onStatus, previousProcess);
+    FakeWebSocket.instances[0].message(JSON.stringify({
+      t: 'status',
+      configRevision: 0,
+      producer: { running: false, registered: false, backends: [] },
+      connectedProducers: [],
+      node: { signaling: { connected: false } },
+    }));
+
+    await vi.waitFor(() => expect(onStatus).toHaveBeenLastCalledWith(restarted));
+    expect(mocks.getStatus).toHaveBeenCalledOnce();
     handle.stop();
   });
 
@@ -123,7 +180,7 @@ describe('status link', () => {
   it('delegates discovery arguments to the control client', async () => {
     const handle = startStatusLink(9000, vi.fn(), seed());
     await handle.discover('gpt', 'openai', ['u1'], 2, 5);
-    expect(discoverMock).toHaveBeenCalledWith('gpt', 'openai', ['u1'], 2, 5);
+    expect(mocks.discover).toHaveBeenCalledWith('gpt', 'openai', ['u1'], 2, 5);
     handle.stop();
   });
 

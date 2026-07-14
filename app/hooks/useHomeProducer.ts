@@ -42,7 +42,11 @@ export function useHomeProducer() {
         setAutoShareNotice(t('producer.autoShareDuplicateSkipped', { offering: prepared.duplicate }));
       }
       try {
-        const next = await control({ action: 'setBackends', backends: prepared.backends });
+        const next = await control({
+          action: 'setBackends',
+          backends: prepared.backends,
+          configRevision: status.configRevision,
+        });
         applyControlStatus(next);
         const failed = next.producer.backends.find((backend) => backend.lastHealth && !backend.lastHealth.ok);
         if (failed) {

@@ -33,6 +33,7 @@ export interface BackendHealth {
 }
 
 export interface Status {
+  configRevision: number;
   transport: { ready: boolean; wsPort: number };
   signaling: { connected: boolean; peerId?: string };
   producer: { running: boolean; registered: boolean; backends: BackendHealth[] };
@@ -68,7 +69,7 @@ type Action =
   | { action: 'updateBackend'; backend: BackendInput }
   | { action: 'removeBackend'; id: string }
   | { action: 'setBackendEnabled'; id: string; enabled: boolean }
-  | { action: 'setBackends'; backends: BackendInput[] }
+  | { action: 'setBackends'; backends: BackendInput[]; configRevision: number }
   | { action: 'stopProducer' }
   | { action: 'startProducer' };
 

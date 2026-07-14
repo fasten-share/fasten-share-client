@@ -32,6 +32,7 @@ export function ProducerForm({
   const [cards, setCards] = useState<Card[]>(initialCards);
   // Ids that exist locally but were never added to the server yet (drafts).
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(() => initialCards()[0]?.id ?? null);
   const [msgById, setMsgById] = useState<Record<string, string>>({});
   const [busyById, setBusyById] = useState<Record<string, 'starting' | 'stopping' | undefined>>({});
@@ -41,6 +42,23 @@ export function ProducerForm({
   const pendingShareRef = useRef<(() => Promise<void>) | null>(null);
 
   const connected = status.signaling.connected;
+
+  useEffect(() => {
+    const persisted = status.config.backends.map(toCard);
+    const persistedIds = new Set(persisted.map((card) => card.id));
+    setCards((current) => {
+      const currentById = new Map(current.map((card) => [card.id, card]));
+      return [
+        ...persisted.map((card) => dirtyIds.has(card.id) ? currentById.get(card.id) ?? card : card),
+        ...current.filter((card) => newIds.has(card.id) && !persistedIds.has(card.id)),
+      ];
+    });
+    setSelectedId((current) =>
+      current && (persistedIds.has(current) || newIds.has(current))
+        ? current
+        : persisted[0]?.id ?? null,
+    );
+  }, [status.config.backends, dirtyIds, newIds]);
 
   useEffect(() => {
     setBusyById((current) => {
@@ -71,6 +89,7 @@ export function ProducerForm({
 
   function patchCard(id: string, patch: Partial<Draft>): void {
     setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    setDirtyIds((current) => new Set(current).add(id));
   }
 
   function hasInvalidVersionPrefix(c: Card): boolean {
@@ -122,6 +141,11 @@ export function ProducerForm({
         drafts.delete(c.id);
         return drafts;
       });
+      setDirtyIds((current) => {
+        const dirty = new Set(current);
+        dirty.delete(c.id);
+        return dirty;
+      });
     } catch (error) {
       setBusyById((p) => ({ ...p, [c.id]: undefined }));
       setMsgById((p) => ({ ...p, [c.id]: `${t('producer.saveFailed')} ${(error as Error).message}` }));
@@ -142,6 +166,11 @@ export function ProducerForm({
     setMsgById((p) => ({ ...p, [c.id]: t('producer.starting') }));
     try {
       onChanged(await control({ action: 'updateBackend', backend: toInput(started) }));
+      setDirtyIds((current) => {
+        const dirty = new Set(current);
+        dirty.delete(c.id);
+        return dirty;
+      });
     } catch (error) {
       setBusyById((p) => ({ ...p, [c.id]: undefined }));
       setMsgById((p) => ({ ...p, [c.id]: `${t('producer.saveFailed')} ${(error as Error).message}` }));
@@ -167,12 +196,18 @@ export function ProducerForm({
   async function removeCard(id: string) {
     const originalCards = cards;
     const originalSelectedId = selectedId;
+    const originalDirtyIds = dirtyIds;
     const isDraft = newIds.has(id);
     const nextCards = cards.filter((c) => c.id !== id);
     const drafts = new Set(newIds);
     drafts.delete(id);
     setCards(nextCards);
     setNewIds(drafts);
+    setDirtyIds((current) => {
+      const dirty = new Set(current);
+      dirty.delete(id);
+      return dirty;
+    });
     if (selectedId === id) setSelectedId(nextCards[0]?.id ?? null);
     if (!isDraft) {
       try {
@@ -181,6 +216,7 @@ export function ProducerForm({
         setCards(originalCards);
         setSelectedId(originalSelectedId);
         setNewIds(newIds);
+        setDirtyIds(originalDirtyIds);
         setMsgById((p) => ({ ...p, [id]: `${t('producer.removeFailed')} ${(error as Error).message}` }));
       }
     }
@@ -214,7 +250,10 @@ export function ProducerForm({
       setCards(next);
       const backends = next.filter((c) => !newIds.has(c.id)).map(toInput);
       try {
-        onChanged(await control({ action: 'setBackends', backends }));
+        onChanged(await control({
+          action: 'setBackends', backends, configRevision: status.configRevision,
+        }));
+        setDirtyIds(new Set());
       } catch (error) {
         setCards(originalCards);
         setMsgById((current) => ({ ...current, [selectedId ?? '']: `${t('producer.saveFailed')} ${(error as Error).message}` }));
@@ -234,7 +273,10 @@ export function ProducerForm({
     setCards(next);
     const backends = next.filter((c) => !newIds.has(c.id)).map((c) => toInput({ ...c, enabled }));
     try {
-      onChanged(await control({ action: 'setBackends', backends }));
+      onChanged(await control({
+        action: 'setBackends', backends, configRevision: status.configRevision,
+      }));
+      setDirtyIds(new Set());
     } catch (error) {
       setCards(originalCards);
       setMsgById((current) => ({ ...current, [selectedId ?? '']: `${t('producer.stopFailed')} ${(error as Error).message}` }));

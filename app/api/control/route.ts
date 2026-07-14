@@ -104,6 +104,7 @@ export async function POST(req: Request): Promise<Response> {
     publisherUserIds?: unknown[];
     page?: number;
     pageSize?: number;
+    configRevision?: number;
   };
   try {
     body = await req.json();
@@ -168,6 +169,9 @@ export async function POST(req: Request): Promise<Response> {
     }
     case 'setBackends':
       {
+        if (body.configRevision !== core.status().configRevision) {
+          return Response.json({ error: 'producer configuration changed; reload and retry' }, { status: 409 });
+        }
         const decrypted = (body.backends ?? []).map((backend) => decryptBackend(backend, session.key));
         if (decrypted.some((backend) => !backend)) {
           return Response.json({ error: INVALID_ENCRYPTED_API_KEY, code: INVALID_ENCRYPTED_API_KEY }, { status: 400 });

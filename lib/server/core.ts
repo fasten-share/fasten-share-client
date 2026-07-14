@@ -42,6 +42,7 @@ export class Core {
   private encryptionUserId: string | null = null;
   private encryptionKey: string | null = null;
   private forcedLogoutCode: 'DEVICE_LIMIT_EXCEEDED' | null = null;
+  private configRevision = 0;
 
   constructor() {
     const cfg = config.all();
@@ -73,6 +74,7 @@ export class Core {
   private pushStatus(): void {
     this.link.send({
       t: 'status',
+      configRevision: this.configRevision,
       producer: this.producerStatus,
       connectedProducers: [],
       node: {
@@ -121,7 +123,10 @@ export class Core {
       this.activeUserId = userId;
       this.producerId = null;
       const cfg = config.all();
-      if (cfg.backendOwnerUserId !== userId) config.setOwnedBackends(userId, []);
+      if (cfg.backendOwnerUserId !== userId) {
+        config.setOwnedBackends(userId, []);
+        this.configRevision += 1;
+      }
     }
     this.accessToken = normalized;
     this.producer?.setAccessToken(normalized);
@@ -210,10 +215,12 @@ export class Core {
   setSignalUrl(): void {
     config.setServerUrl();
     this.connection.setUrl(producerWsUrl(SERVICE_URL));
+    this.configChanged();
   }
 
   setAutoShare(enabled: boolean): void {
     config.setAutoShare(enabled);
+    this.configChanged();
   }
 
   private normalizeBackend(backend: BackendConfig): BackendConfig {
@@ -238,6 +245,7 @@ export class Core {
       this.activeUserId,
       exists ? list.map((item) => item.id === backend.id ? backend : item) : [...list, backend],
     );
+    this.configChanged();
   }
 
   addBackend(backend: BackendConfig): void {
@@ -255,6 +263,7 @@ export class Core {
   removeBackend(id: string): void {
     if (!this.activeUserId) return;
     config.setOwnedBackends(this.activeUserId, config.all().backends.filter((item) => item.id !== id));
+    this.configChanged();
     this.producer?.removeBackend(id);
   }
 
@@ -270,6 +279,7 @@ export class Core {
     const normalized = backends.map((backend) => this.normalizeBackend(backend));
     if (!this.activeUserId) throw new Error('missing authenticated account');
     config.setOwnedBackends(this.activeUserId, normalized);
+    this.configChanged();
     if (!normalized.length) return this.stopProducer();
     this.ensureDaemon().setBackends(normalized);
   }
@@ -277,6 +287,7 @@ export class Core {
   status() {
     const cfg = config.all();
     return {
+      configRevision: this.configRevision,
       transport: { ready: true, wsPort: this.link.port },
       signaling: { connected: this.connection.connected, peerId: this.producerId ?? undefined },
       producer: this.producerStatus,
@@ -287,6 +298,11 @@ export class Core {
       },
       connectedProducers: [],
     };
+  }
+
+  private configChanged(): void {
+    this.configRevision += 1;
+    this.pushStatus();
   }
 }
 

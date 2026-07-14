@@ -3,7 +3,7 @@
  * (override with FS_DATA_DIR — the Electron shell points this at userData).
  * Env vars can seed config for headless (Docker) producers.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { hostname } from 'node:os';
@@ -102,16 +102,25 @@ function read(): NodeConfig {
 
   // Persist the migrated/seeded shape so the legacy `backend` key is dropped and
   // ids are stable across restarts.
-  if (!stored.deviceId || !stored.deviceName || !Array.isArray(stored.backends) || stored.serverUrl !== SERVICE_URL || stored.autoShare === undefined) write(cfg);
+  if (!stored.deviceId || !stored.deviceName || !Array.isArray(stored.backends) || stored.serverUrl !== SERVICE_URL || stored.autoShare === undefined) {
+    try {
+      write(cfg);
+    } catch (error) {
+      console.warn('[config] migrated configuration is active in memory but could not be persisted', error);
+    }
+  }
   return cfg;
 }
 
 function write(cfg: NodeConfig): void {
+  const temporaryPath = `${CONFIG_PATH}.${process.pid}.${randomUUID()}.tmp`;
   try {
     mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
-  } catch {
-    /* read-only fs — keep in-memory only */
+    writeFileSync(temporaryPath, JSON.stringify(cfg, null, 2), { encoding: 'utf8', mode: 0o600 });
+    renameSync(temporaryPath, CONFIG_PATH);
+  } catch (error) {
+    rmSync(temporaryPath, { force: true });
+    throw error;
   }
 }
 
@@ -122,28 +131,35 @@ export const config = {
     return (cache ??= read());
   },
   setServerUrl(): void {
-    const c = this.all();
-    c.serverUrl = SERVICE_URL;
-    write(c);
+    const next = { ...this.all(), serverUrl: SERVICE_URL };
+    write(next);
+    cache = next;
   },
   setAutoShare(enabled: boolean): void {
-    const c = this.all();
-    c.autoShare = enabled;
-    write(c);
+    const next = { ...this.all(), autoShare: enabled };
+    write(next);
+    cache = next;
   },
   setOwnedBackends(userId: string, backends: BackendConfig[]): void {
-    const c = this.all();
-    c.backendOwnerUserId = userId;
-    c.backends = backends.map(withId);
-    write(c);
+    const next = {
+      ...this.all(),
+      backendOwnerUserId: userId,
+      backends: backends.map(withId),
+    };
+    write(next);
+    cache = next;
   },
   serverProducerIdFor(userId: string): string | undefined {
     return this.all().producerIds[userId];
   },
   saveServerProducerId(userId: string, producerId: string): void {
-    const c = this.all();
-    c.producerIds[userId] = producerId;
-    c.producerIdsServerIssued = true;
-    write(c);
+    const current = this.all();
+    const next = {
+      ...current,
+      producerIds: { ...current.producerIds, [userId]: producerId },
+      producerIdsServerIssued: true,
+    };
+    write(next);
+    cache = next;
   },
 };
