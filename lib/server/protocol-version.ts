@@ -1,9 +1,1 @@
-export const API_VERSION = 1;
-export const WIRE_VERSION = 1;
-export const PRODUCER_WS_PATH = `/ws/v${API_VERSION}/producer`;
-
-export const PRODUCER_CAPABILITIES = [
-  'binary-chunks',
-  'request-cancellation',
-  'capacity-advertisement',
-] as const;
+export { API_VERSION, PRODUCER_CAPABILITIES, PRODUCER_WS_PATH, WIRE_VERSION } from '@fasten-share/contracts/protocol-version';

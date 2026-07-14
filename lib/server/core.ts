@@ -39,8 +39,7 @@ export class Core {
   private accessToken: string | null = null;
   private activeUserId: string | null = null;
   private producerId: string | null = null;
-  private encryptionUserId: string | null = null;
-  private encryptionKey: string | null = null;
+  private readonly encryptionKeys = new Map<string, string>();
   private forcedLogoutCode: 'DEVICE_LIMIT_EXCEEDED' | null = null;
   private configRevision = 0;
 
@@ -146,23 +145,19 @@ export class Core {
     const userId = tokenUserId(token);
     if (!userId) throw new Error('invalid login token');
     const key = generateApiKeyEncryptionKey();
-    this.encryptionUserId = userId;
-    this.encryptionKey = key;
+    this.encryptionKeys.set(userId, key);
     this.setAccessToken(token);
     return key;
   }
 
   encryptionKeyForToken(token: string | null): string | null {
     const userId = token ? tokenUserId(token) : null;
-    return userId && userId === this.encryptionUserId ? this.encryptionKey : null;
+    return userId ? this.encryptionKeys.get(userId) ?? null : null;
   }
 
   clearEncryptionSession(token?: string | null): void {
-    const userId = token ? tokenUserId(token) : this.encryptionUserId;
-    if (userId && userId === this.encryptionUserId) {
-      this.encryptionUserId = null;
-      this.encryptionKey = null;
-    }
+    const userId = token ? tokenUserId(token) : this.activeUserId;
+    if (userId) this.encryptionKeys.delete(userId);
   }
 
   startProducer(): { ok: boolean; error?: string } {

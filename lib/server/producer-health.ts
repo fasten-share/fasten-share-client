@@ -43,7 +43,7 @@ export function buildAdvertisedOfferings(
   backends: Iterable<BackendConfig>,
   advertise: ReadonlyMap<string, boolean>,
 ): Offering[] {
-  const byProtocol = new Map<string, Omit<Offering, 'protocol'>>();
+  const byProtocol = new Map<BackendConfig['protocol'], Omit<Offering, 'protocol'>>();
   for (const backend of backends) {
     if (backend.enabled === false || advertise.get(backend.id) !== true) continue;
     const entry = byProtocol.get(backend.protocol) ?? {

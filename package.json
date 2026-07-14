@@ -12,9 +12,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "export:desktop": "next build && shx cp -r .next/static .next/standalone/.next/static && shx cp -r public .next/standalone/public && shx rm -rf ../fasten-share-desktop/server-dist && shx cp -r .next/standalone ../fasten-share-desktop/server-dist"
+    "export:desktop": "next build && shx cp -r .next/static .next/standalone/fasten-share-client/.next/static && shx cp -r public .next/standalone/fasten-share-client/public && shx rm -rf ../fasten-share-desktop/server-dist && shx cp -r .next/standalone/fasten-share-client ../fasten-share-desktop/server-dist"
   },
   "dependencies": {
+    "@fasten-share/contracts": "file:../packages/contracts",
     "@iarna/toml": "^2.2.5",
     "json5": "^2.2.3",
     "next": "16.2.9",
