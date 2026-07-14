@@ -22,6 +22,8 @@ export type DiscoverFn = (
 export interface ProducerBridgeHandle {
   stop(): void;
   discover: DiscoverFn;
+  /** Keep the push channel's snapshot aligned after a control API mutation. */
+  syncStatus(status: Status): void;
 }
 
 /**
@@ -109,6 +111,10 @@ export function startStatusLink(
   ): ReturnType<DiscoverFn> =>
     discoverModels(keyword, protocol, publisherUserIds, page, pageSize) as ReturnType<DiscoverFn>;
 
+  function syncStatus(next: Status): void {
+    status = next;
+  }
+
   function stop(): void {
     if (stopped) return;
     stopped = true;
@@ -125,5 +131,5 @@ export function startStatusLink(
 
   emit(); // render the seed immediately
   connect();
-  return { stop, discover };
+  return { stop, discover, syncStatus };
 }

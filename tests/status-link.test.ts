@@ -77,6 +77,38 @@ describe('status link', () => {
     handle.stop();
   });
 
+  it('keeps control API config when a later runtime status push arrives', () => {
+    const onStatus = vi.fn();
+    const handle = startStatusLink(9000, onStatus, seed());
+    const saved = {
+      ...seed(),
+      config: {
+        ...seed().config,
+        backends: [{
+          id: 'new-backend',
+          baseUrl: 'http://localhost:11434',
+          protocol: 'ollama',
+          models: ['qwen3'],
+          apiKey: '',
+        }],
+      },
+    } satisfies Status;
+
+    handle.syncStatus(saved);
+    FakeWebSocket.instances[0].message(JSON.stringify({
+      t: 'status',
+      producer: { running: true, registered: true, backends: [] },
+      connectedProducers: [],
+      node: { signaling: { connected: true, peerId: 'node' } },
+    }));
+
+    expect(onStatus).toHaveBeenLastCalledWith(expect.objectContaining({
+      config: saved.config,
+      producer: expect.objectContaining({ running: true }),
+    }));
+    handle.stop();
+  });
+
   it('dispatches forced logout events with the server code', () => {
     const listener = vi.fn();
     window.addEventListener('fs:forced-logout', listener);

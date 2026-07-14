@@ -19,9 +19,16 @@ export function useHomeProducer() {
     setSignalUrl((current) => current === '' ? next.config.signalUrl : current);
   }, []);
 
+  const applyControlStatus = useCallback((next: Status) => {
+    // The local WebSocket merges runtime pushes into its own snapshot. Keep that
+    // snapshot current so a queued health push cannot restore pre-save config.
+    bridgeHandle?.syncStatus(next);
+    onStatus(next);
+  }, [bridgeHandle, onStatus]);
+
   const setAutoShare = useCallback(async (next: boolean) => {
-    onStatus(await control({ action: 'setAutoShare', autoShare: next }));
-  }, [onStatus]);
+    applyControlStatus(await control({ action: 'setAutoShare', autoShare: next }));
+  }, [applyControlStatus]);
 
   useEffect(() => {
     if (!status?.config.autoShare || autoShareDone.current) return;
@@ -36,7 +43,7 @@ export function useHomeProducer() {
       }
       try {
         const next = await control({ action: 'setBackends', backends: prepared.backends });
-        onStatus(next);
+        applyControlStatus(next);
         const failed = next.producer.backends.find((backend) => backend.lastHealth && !backend.lastHealth.ok);
         if (failed) {
           setAutoShareNotice(t('producer.autoShareFailed', {
@@ -47,7 +54,7 @@ export function useHomeProducer() {
         setAutoShareNotice(t('producer.autoShareFailed', { reason: t('producer.healthReasonUnknown') }));
       }
     })();
-  }, [status, onStatus, t]);
+  }, [status, applyControlStatus, t]);
 
   useEffect(() => {
     if (status && !status.transport.ready) autoShareDone.current = false;
@@ -61,7 +68,7 @@ export function useHomeProducer() {
   );
 
   return {
-    status, setStatus, signalUrl, setBridgeHandle, autoShareNotice,
+    status, setStatus: applyControlStatus, signalUrl, setBridgeHandle, autoShareNotice,
     onStatus, setAutoShare, discover,
   };
 }
