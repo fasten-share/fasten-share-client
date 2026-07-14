@@ -19,9 +19,9 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
     onSelectApiKey, apiKeysLoading, apiKeysError } = props;
   const { t } = useI18n();
   const state = useConsumerInfoState({ status, discover, currentUserId, apiKeys, selectedApiKeyId, t });
-  const { searchScope, rows, expanded, searching, searched, searchPage, searchTotal,
+  const { searchScope, rows, expanded, searching, searched, searchPage, searchHasMore,
     selectedApiKey, followingUserIds, ratingDrafts, setRatingDrafts, ratingUserIds,
-    setRatingError, searchPageCount, runSearch, toggleExpanded, onToggleKey,
+    setRatingError, runSearch, toggleExpanded, onToggleKey,
     onToggleFollow, onRate, toolConfig } = state;
   const { copied, curlTarget, setCurlTarget, toolByTarget, setToolByTarget, configuringTarget, configuringTool, pendingInspection, toolConfigStage, toolBackups, restorePreview, toolConfigWorking, toolConfigMessage, toolConfigError, copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig, checkAndConfigureTool, showRestorePreview, restoreBackup } = toolConfig;
   return (
@@ -209,7 +209,7 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
             </div>
           );
         })}
-        {searched && searchTotal > 0 && (
+        {searched && (rows.length > 0 || searchPage > 1) && (
           <div className={styles.pagination}>
             <button
               type="button"
@@ -219,11 +219,11 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
             >
               {t('consumer.previousPage')}
             </button>
-            <span>{t('consumer.pageInfo', { page: searchPage, pages: searchPageCount, total: searchTotal })}</span>
+            <span>{t('consumer.cursorPageInfo', { page: searchPage })}</span>
             <button
               type="button"
               className="secondary"
-              disabled={searching || searchPage >= searchPageCount}
+              disabled={searching || !searchHasMore}
               onClick={() => void runSearch(searchScope, searchPage + 1)}
             >
               {t('consumer.nextPage')}

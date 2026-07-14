@@ -28,6 +28,7 @@ export interface ReferralPayoutDto {
   sourceRef: string;
   state: 'escrow' | 'released' | 'clawed_back';
   releasedAt: string | null;
+  occurredAt: string;
   createdAt: string;
 }
 

@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  discover: vi.fn(async () => ({ candidates: [], page: 1, pageSize: 20, total: 0 })),
+  discover: vi.fn(async () => ({ candidates: [], nextCursor: null, hasMore: false, limit: 20 })),
   getStatus: vi.fn(),
 }));
 vi.mock('@/lib/control-client', () => ({ discoverModels: mocks.discover, getStatus: mocks.getStatus }));
@@ -179,8 +179,8 @@ describe('status link', () => {
 
   it('delegates discovery arguments to the control client', async () => {
     const handle = startStatusLink(9000, vi.fn(), seed());
-    await handle.discover('gpt', 'openai', ['u1'], 2, 5);
-    expect(mocks.discover).toHaveBeenCalledWith('gpt', 'openai', ['u1'], 2, 5);
+    await handle.discover('gpt', 'openai', ['u1'], 'cursor', 5);
+    expect(mocks.discover).toHaveBeenCalledWith('gpt', 'openai', ['u1'], 'cursor', 5);
     handle.stop();
   });
 

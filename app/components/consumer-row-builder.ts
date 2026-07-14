@@ -13,7 +13,7 @@ export function buildConsumerRows(
   const grouped = new Map<string, ConsumerRow>();
   for (const candidate of candidates) {
     for (const model of candidate.models) {
-      if (keywordLower && !model.toLowerCase().includes(keywordLower)) continue;
+      if (keywordLower && model.toLowerCase() !== keywordLower) continue;
       const key = `${candidate.protocol} ${model}`;
       const row = grouped.get(key) ?? { model, protocol: candidate.protocol, nodes: [] };
       if (!row.nodes.some((node) => node.peerId === candidate.peerId)) {

@@ -131,8 +131,8 @@ export async function discoverModels(
   keyword: string,
   protocol: string,
   publisherUserIds?: string[],
-  page = 1,
-  pageSize = 20,
+  cursor?: string,
+  limit = 20,
 ): Promise<{
   candidates: {
   peerId: string;
@@ -145,27 +145,27 @@ export async function discoverModels(
   supportedTools?: Record<string, ToolId[]>;
   versionPrefixes?: Record<string, string>;
   }[];
-  page: number;
-  pageSize: number;
-  total: number;
+  nextCursor: string | null;
+  hasMore: boolean;
+  limit: number;
 }> {
   const r = await fetch('/api/control', {
     method: 'POST',
     headers: { ...authHeaders(), 'content-type': 'application/json' },
-    body: JSON.stringify({ action: 'discover', keyword, protocol, publisherUserIds, page, pageSize }),
+    body: JSON.stringify({ action: 'discover', keyword, protocol, publisherUserIds, cursor, limit }),
   });
   if (!r.ok) throw await toControlError(r);
   const data = (await r.json()) as {
     candidates?: CandidateResult[];
-    page?: number;
-    pageSize?: number;
-    total?: number;
+    nextCursor?: string | null;
+    hasMore?: boolean;
+    limit?: number;
   };
   return {
     candidates: data.candidates ?? [],
-    page: data.page ?? page,
-    pageSize: data.pageSize ?? pageSize,
-    total: data.total ?? 0,
+    nextCursor: data.nextCursor ?? null,
+    hasMore: data.hasMore === true,
+    limit: data.limit ?? limit,
   };
 }
 

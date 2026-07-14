@@ -102,8 +102,8 @@ export async function POST(req: Request): Promise<Response> {
     keyword?: string;
     protocol?: string;
     publisherUserIds?: unknown[];
-    page?: number;
-    pageSize?: number;
+    cursor?: string;
+    limit?: number;
     configRevision?: number;
   };
   try {
@@ -162,8 +162,8 @@ export async function POST(req: Request): Promise<Response> {
         String(body.keyword ?? ''),
         String(body.protocol ?? ''),
         publisherUserIds,
-        Number(body.page ?? 1),
-        Number(body.pageSize ?? 20),
+        typeof body.cursor === 'string' ? body.cursor : undefined,
+        Number(body.limit ?? 20),
       );
       return Response.json(securedStatus(session.key, list));
     }

@@ -65,9 +65,9 @@ export function useHomeProducer() {
   }, [status]);
 
   const discover = useCallback<DiscoverFn>(
-    (keyword, protocol, publisherUserIds, page, pageSize) => bridgeHandle
-      ? bridgeHandle.discover(keyword, protocol, publisherUserIds, page, pageSize)
-      : Promise.resolve({ candidates: [], page: page ?? 1, pageSize: pageSize ?? 20, total: 0 }),
+    (keyword, protocol, publisherUserIds, cursor, limit) => bridgeHandle
+      ? bridgeHandle.discover(keyword, protocol, publisherUserIds, cursor, limit)
+      : Promise.resolve({ candidates: [], nextCursor: null, hasMore: false, limit: limit ?? 20 }),
     [bridgeHandle],
   );
 

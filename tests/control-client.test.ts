@@ -68,12 +68,12 @@ describe('control client', () => {
 
   it('discovers models and supplies safe response defaults', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(Response.json({ candidates: [{ peerId: 'p' }], page: 2, pageSize: 3, total: 4 }))
+      .mockResolvedValueOnce(Response.json({ candidates: [{ peerId: 'p' }], nextCursor: 'next', hasMore: true, limit: 3 }))
       .mockResolvedValueOnce(Response.json({}));
     vi.stubGlobal('fetch', fetchMock);
-    await expect(discoverModels('gpt', 'openai', ['u'], 2, 3)).resolves.toMatchObject({ page: 2, pageSize: 3, total: 4 });
-    await expect(discoverModels('', 'openai')).resolves.toEqual({ candidates: [], page: 1, pageSize: 20, total: 0 });
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ action: 'discover', keyword: 'gpt', protocol: 'openai', publisherUserIds: ['u'], page: 2, pageSize: 3 });
+    await expect(discoverModels('gpt', 'openai', ['u'], 'cursor', 3)).resolves.toMatchObject({ nextCursor: 'next', hasMore: true, limit: 3 });
+    await expect(discoverModels('', 'openai')).resolves.toEqual({ candidates: [], nextCursor: null, hasMore: false, limit: 20 });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ action: 'discover', keyword: 'gpt', protocol: 'openai', publisherUserIds: ['u'], cursor: 'cursor', limit: 3 });
   });
 
   it('turns JSON and non-JSON failures into status-bearing errors', async () => {

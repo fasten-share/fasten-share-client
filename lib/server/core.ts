@@ -183,16 +183,16 @@ export class Core {
     keyword: string,
     protocol: string,
     publisherUserIds?: string[],
-    page = 1,
-    pageSize = 20,
-  ): Promise<{ candidates: Candidate[]; page: number; pageSize: number; total: number }> {
-    if (!this.accessToken) return { candidates: [], page, pageSize, total: 0 };
+    cursor?: string,
+    limit = 20,
+  ): Promise<{ candidates: Candidate[]; nextCursor: string | null; hasMore: boolean; limit: number }> {
+    if (!this.accessToken) return { candidates: [], nextCursor: null, hasMore: false, limit };
     const url = new URL('/api/v1/producers', config.all().serverUrl);
     if (keyword) url.searchParams.set('keyword', keyword);
     if (protocol) url.searchParams.set('protocol', protocol);
     if (publisherUserIds?.length) url.searchParams.set('publisherUserIds', publisherUserIds.join(','));
-    url.searchParams.set('page', String(page));
-    url.searchParams.set('limit', String(pageSize));
+    if (cursor) url.searchParams.set('cursor', cursor);
+    url.searchParams.set('limit', String(limit));
     const response = await fetch(url, {
       headers: { authorization: `Bearer ${this.accessToken}` },
       cache: 'no-store',
@@ -200,15 +200,15 @@ export class Core {
     if (!response.ok) throw new Error(`producer discovery failed (${response.status})`);
     const data = (await response.json()) as {
       candidates?: Candidate[];
-      page?: number;
-      pageSize?: number;
-      total?: number;
+      nextCursor?: string | null;
+      hasMore?: boolean;
+      limit?: number;
     };
     return {
       candidates: data.candidates ?? [],
-      page: data.page ?? page,
-      pageSize: data.pageSize ?? pageSize,
-      total: data.total ?? 0,
+      nextCursor: data.nextCursor ?? null,
+      hasMore: data.hasMore === true,
+      limit: data.limit ?? limit,
     };
   }
 

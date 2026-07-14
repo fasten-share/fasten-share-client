@@ -23,7 +23,7 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
-  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchHasMore, setSearchHasMore] = useState(false);
   const selectedApiKey =
     apiKeys.find((apiKey) => apiKey.id === selectedApiKeyId && !apiKey.frozen)
     ?? apiKeys.find((apiKey) => !apiKey.frozen)
@@ -41,13 +41,16 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
   const [ratingUserIds, setRatingUserIds] = useState<Set<string>>(new Set());
   const [ratingError, setRatingError] = useState('');
   const searchRequest = useRef(0);
+  const searchCursors = useRef<Map<number, string | undefined>>(new Map([[1, undefined]]));
 
   const connected = status.signaling.connected;
-  const searchPageCount = Math.max(1, Math.ceil(searchTotal / PAGE_SIZE));
   const followingPageCount = Math.max(1, Math.ceil(followingTotal / PAGE_SIZE));
 
   const runSearch = useCallback(async (scope: SearchScope, page = 1) => {
     const requestId = ++searchRequest.current;
+    if (page === 1) searchCursors.current = new Map([[1, undefined]]);
+    const cursor = searchCursors.current.get(page);
+    if (page > 1 && !cursor) return;
     const kw = keyword.trim();
     const proto = protocol.trim();
     setSearching(true);
@@ -64,9 +67,9 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
       scope === 'following' ? '' : kw,
       scope === 'following' ? '' : proto,
       publisherUserIds,
-      page,
+      cursor,
       PAGE_SIZE,
-    ).catch(() => ({ candidates: [], page, pageSize: PAGE_SIZE, total: 0 }));
+    ).catch(() => ({ candidates: [], nextCursor: null, hasMore: false, limit: PAGE_SIZE }));
     const list = result.candidates;
     const userIds = [...new Set(list.map((c) => c.userId).filter(Boolean))];
     const [userSummaries, ratingStatuses] = await Promise.all([
@@ -75,8 +78,10 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     ]);
     const out = buildConsumerRows(list, scope, kw, userSummaries, ratingStatuses, currentFollowedUsers);
     if (requestId !== searchRequest.current) return;
-    setSearchPage(result.page);
-    setSearchTotal(result.total);
+    setSearchPage(page);
+    setSearchHasMore(result.hasMore);
+    if (result.nextCursor) searchCursors.current.set(page + 1, result.nextCursor);
+    else searchCursors.current.delete(page + 1);
     setRows(out);
     setExpanded(new Set());
     setRatingDrafts((current) => {
@@ -269,11 +274,11 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
 
   return {
     searchScope, setSearchScope, keyword, setKeyword, protocol, setProtocol, rows,
-    expanded, searching, searched, searchPage, searchTotal, selectedApiKey,
+    expanded, searching, searched, searchPage, searchHasMore, selectedApiKey,
     followingUserIds, followedUsers, followedRatings, selectedFollowingUserIds,
     setSelectedFollowingUserIds, followingPage, followingTotal, followError,
     ratingDrafts, setRatingDrafts, ratingUserIds, ratingError, setRatingError, connected,
-    searchPageCount, followingPageCount, runSearch, openFollowingPicker, onEnter,
+    followingPageCount, runSearch, openFollowingPicker, onEnter,
     toggleExpanded, onToggleKey, onToggleFollow, onRate, toolConfig,
   };
 }
