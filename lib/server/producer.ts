@@ -17,7 +17,7 @@ import type { BackendConfig, BackendStatus, ProducerStatus } from './types';
 import { normalizeCostMultiplier } from '../cost';
 import { ProducerConnection, type ProducerEvent } from './producer-connection';
 import { buildAdvertisedOfferings, probeHealth, type HealthResult } from './producer-health';
-import { ProducerRequestRouter } from './producer-request-router';
+import { ProducerRequestRouter, type BackendRequestResult } from './producer-request-router';
 
 const HEARTBEAT_MS = 15_000;
 const HEALTH_MS = 30_000;
@@ -49,7 +49,7 @@ export class ProducerDaemon extends Emitter<Events> {
   private advertise = new Map<string, boolean>(); // whether the backend's models are advertised
   private checking = new Map<string, boolean>();
   private operation = new Map<string, number>();
-  private failStreak = new Map<string, number>();
+  private requestCounts = new Map<string, { success: number; failure: number }>();
   private readonly requestRouter: ProducerRequestRouter;
   private readonly requestListener = (event: ProducerEvent) => this.requestRouter.handle(event);
   private readonly closeListener = () => this.onSignalingClose();
@@ -60,7 +60,7 @@ export class ProducerDaemon extends Emitter<Events> {
       connection,
       () => this.backends.values(),
       (id) => this.advertise.get(id) === true,
-      (id) => this.markQuotaExceeded(id),
+      (id, result) => this.recordRequestResult(id, result),
     );
   }
 
@@ -139,12 +139,12 @@ export class ProducerDaemon extends Emitter<Events> {
     this.health.delete(b.id);
     this.advertise.set(b.id, false);
     this.checking.set(b.id, b.enabled !== false);
-    this.failStreak.set(b.id, 0);
+    this.resetRequestCounts(b.id);
     this.syncRegistration();
     if (b.enabled !== false) void this.probeAndRecord(b, operation);
   }
 
-  /** Same gate as add; resets the failure streak for the (re)configured backend. */
+  /** Same gate as add; resets request statistics for the reconfigured backend. */
   updateBackend(b: BackendConfig): void {
     this.addBackend(b);
   }
@@ -162,7 +162,7 @@ export class ProducerDaemon extends Emitter<Events> {
     if (b) this.backends.set(id, { ...b, enabled: false });
     this.advertise.set(id, false);
     this.checking.set(id, false);
-    this.failStreak.set(id, 0);
+    this.resetRequestCounts(id);
     this.syncRegistration();
   }
 
@@ -176,7 +176,7 @@ export class ProducerDaemon extends Emitter<Events> {
       this.backends.set(b.id, b);
       this.advertise.set(b.id, false);
       this.checking.set(b.id, b.enabled !== false);
-      this.failStreak.set(b.id, 0);
+      this.resetRequestCounts(b.id);
       if (b.enabled !== false) {
         this.health.delete(b.id);
         probes.push({ backend: b, operation });
@@ -192,7 +192,7 @@ export class ProducerDaemon extends Emitter<Events> {
     this.health.delete(id);
     this.advertise.delete(id);
     this.checking.delete(id);
-    this.failStreak.delete(id);
+    this.requestCounts.delete(id);
   }
 
   /** Probe one backend and record its health + advertise decision (strict gate).
@@ -201,7 +201,7 @@ export class ProducerDaemon extends Emitter<Events> {
     if (b.enabled === false) {
       this.advertise.set(b.id, false);
       this.checking.set(b.id, false);
-      this.failStreak.set(b.id, 0);
+      this.resetRequestCounts(b.id);
       return { ok: true };
     }
     const r = await probeHealth(b);
@@ -209,7 +209,7 @@ export class ProducerDaemon extends Emitter<Events> {
     this.health.set(b.id, { ok: r.ok, reason: r.reason, at: Date.now() });
     this.advertise.set(b.id, r.ok);
     this.checking.set(b.id, false);
-    this.failStreak.set(b.id, 0);
+    this.resetRequestCounts(b.id);
     this.syncRegistration();
     return r;
   }
@@ -259,29 +259,52 @@ export class ProducerDaemon extends Emitter<Events> {
   }
 
   private async checkBackend(b: BackendConfig): Promise<void> {
-    if (b.enabled === false) return; // user-stopped: don't probe or advertise
+    if (b.enabled === false) {
+      this.resetRequestCounts(b.id);
+      return; // user-stopped: don't probe or advertise
+    }
     const operation = this.operation.get(b.id) ?? 0;
+    const counts = this.takeRequestCounts(b.id);
+    const previous = this.health.get(b.id);
+    if (previous?.ok) {
+      const ok = counts.failure <= counts.success;
+      this.health.set(b.id, { ok, reason: ok ? undefined : 'REQUEST_FAILURE_RATE', at: Date.now() });
+      if (ok) {
+        this.advertise.set(b.id, true);
+      } else {
+        if (this.advertise.get(b.id) !== false) this.emit('autodown', `${b.id} REQUEST_FAILURE_RATE`);
+        this.advertise.set(b.id, false);
+      }
+      return;
+    }
     const r = await probeHealth(b);
     if (this.operation.get(b.id) !== operation || this.backends.get(b.id) !== b) return;
     this.health.set(b.id, { ok: r.ok, reason: r.reason, at: Date.now() });
-    if (r.ok) {
-      this.advertise.set(b.id, true);
-      this.failStreak.set(b.id, 0);
-      return;
-    }
-    const streak = (this.failStreak.get(b.id) ?? 0) + 1;
-    this.failStreak.set(b.id, streak);
-    // QUOTA/AUTH drop immediately; NETWORK only after a 2nd consecutive miss.
-    if (r.reason === 'QUOTA' || r.reason === 'AUTH' || streak >= 2) {
-      if (this.advertise.get(b.id) !== false) this.emit('autodown', `${b.id} ${r.reason ?? 'UNHEALTHY'}`);
-      this.advertise.set(b.id, false);
+    if (!r.ok && this.advertise.get(b.id) !== false) this.emit('autodown', `${b.id} ${r.reason ?? 'UNHEALTHY'}`);
+    this.advertise.set(b.id, r.ok);
+  }
+
+  private recordRequestResult(backendId: string, result: BackendRequestResult): void {
+    if (!this.backends.has(backendId)) return;
+    const counts = this.requestCounts.get(backendId) ?? { success: 0, failure: 0 };
+    if (result.ok) counts.success += 1;
+    else counts.failure += 1;
+    this.requestCounts.set(backendId, counts);
+    if (!result.ok && (result.reason === 'QUOTA' || result.reason === 'AUTH')) {
+      this.health.set(backendId, { ok: false, reason: result.reason, at: Date.now() });
+      if (this.advertise.get(backendId) !== false) this.emit('autodown', `${backendId} ${result.reason}`);
+      this.advertise.set(backendId, false);
+      this.syncRegistration();
     }
   }
 
-  private markQuotaExceeded(backendId: string): void {
-    this.health.set(backendId, { ok: false, reason: 'QUOTA', at: Date.now() });
-    if (this.advertise.get(backendId) !== false) this.emit('autodown', `${backendId} QUOTA`);
-    this.advertise.set(backendId, false);
-    this.syncRegistration();
+  private resetRequestCounts(backendId: string): void {
+    this.requestCounts.set(backendId, { success: 0, failure: 0 });
+  }
+
+  private takeRequestCounts(backendId: string): { success: number; failure: number } {
+    const counts = this.requestCounts.get(backendId) ?? { success: 0, failure: 0 };
+    this.resetRequestCounts(backendId);
+    return counts;
   }
 }

@@ -8,6 +8,13 @@ import { joinUrl } from './producer-health';
 const MAX_CHUNK_BYTES = 64 * 1024;
 const MAX_CONCURRENCY_MESSAGE = 'This producer node has reached its maximum concurrency limit.';
 
+export type BackendRequestResult = {
+  ok: boolean;
+  reason?: 'AUTH' | 'QUOTA' | 'HTTP' | 'NETWORK';
+};
+
+class DownstreamError extends Error {}
+
 export class ProducerRequestRouter {
   private readonly activeRequests = new Map<string, Set<symbol>>();
   private readonly inbound = new Map<string, { controller: ReadableStreamDefaultController<Uint8Array>; abort: AbortController }>();
@@ -16,7 +23,7 @@ export class ProducerRequestRouter {
     private readonly connection: ProducerConnection,
     private readonly candidates: () => Iterable<BackendConfig>,
     private readonly isAdvertised: (backendId: string) => boolean,
-    private readonly onQuota: (backendId: string) => void,
+    private readonly onResult: (backendId: string, result: BackendRequestResult) => void,
   ) {}
 
   abortAll(reason: string): void {
@@ -66,7 +73,7 @@ export class ProducerRequestRouter {
     const method = String(data.method ?? 'POST').toUpperCase(); const path = String(data.path ?? '/');
     const rawHeaders = data.headers && typeof data.headers === 'object' ? data.headers as Record<string, string> : {};
     const send = (type: string, extra: Record<string, unknown> = {}) => {
-      if (!this.connection.respond({ type, requestId: event.requestId, ...extra })) throw new Error('server connection not open');
+      if (!this.connection.respond({ type, requestId: event.requestId, ...extra })) throw new DownstreamError('server connection not open');
     };
     const backend = this.selectBackend(protocol, model);
     if (!backend) return send('response.error', { data: { message: `no backend for '${protocol}'/'${model}'`, code: 'BACKEND_NOT_FOUND' } });
@@ -80,10 +87,23 @@ export class ProducerRequestRouter {
     const abort = new AbortController(); let controller!: ReadableStreamDefaultController<Uint8Array>;
     const body = new ReadableStream<Uint8Array>({ start: (value) => { controller = value; } });
     this.inbound.set(event.requestId, { controller, abort });
-    let responseStatus: number | undefined;
+    let recorded = false;
+    const record = (result: BackendRequestResult) => {
+      if (recorded) return;
+      recorded = true;
+      this.onResult(backend.id, result);
+    };
     try {
       const init: RequestInit & { duplex?: 'half' } = { method, headers, body: method === 'GET' || method === 'HEAD' ? undefined : body, signal: abort.signal, duplex: 'half' };
-      const response = await fetch(joinUrl(backend.baseUrl, path), init); responseStatus = response.status;
+      const response = await fetch(joinUrl(backend.baseUrl, path), init);
+      if (!response.ok) {
+        const reason = response.status === 401 || response.status === 403
+          ? 'AUTH'
+          : response.status === 402 || response.status === 429
+            ? 'QUOTA'
+            : 'HTTP';
+        record({ ok: false, reason });
+      }
       const responseHeaders: Record<string, string> = {}; response.headers.forEach((value, name) => { responseHeaders[name] = value; });
       send('response.head', { data: { status: response.status, headers: sanitizeHeaders(responseHeaders) } });
       if (response.body) {
@@ -91,16 +111,17 @@ export class ProducerRequestRouter {
         for (;;) {
           const { value, done } = await reader.read(); if (done) break;
           for (let offset = 0; offset < value.length; offset += MAX_CHUNK_BYTES) {
-            if (!await this.connection.respondChunk(event.requestId, value.subarray(offset, offset + MAX_CHUNK_BYTES))) throw new Error('server connection not open');
+            if (!await this.connection.respondChunk(event.requestId, value.subarray(offset, offset + MAX_CHUNK_BYTES))) throw new DownstreamError('server connection not open');
           }
         }
       }
+      if (response.ok) record({ ok: true });
       send('response.end');
     } catch (error) {
+      if (!abort.signal.aborted && !(error instanceof DownstreamError)) record({ ok: false, reason: 'NETWORK' });
       if (!abort.signal.aborted) try { send('response.error', { data: { message: String((error as Error)?.message ?? error), code: 'UPSTREAM_ERROR' } }); } catch { /* socket closed */ }
     } finally {
       this.inbound.delete(event.requestId); this.release(backend.id, slot);
     }
-    if (responseStatus === 402 || responseStatus === 429) this.onQuota(backend.id);
   }
 }
