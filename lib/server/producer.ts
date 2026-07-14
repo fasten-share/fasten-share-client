@@ -266,17 +266,13 @@ export class ProducerDaemon extends Emitter<Events> {
     const operation = this.operation.get(b.id) ?? 0;
     const counts = this.takeRequestCounts(b.id);
     const previous = this.health.get(b.id);
-    if (previous?.ok) {
-      const ok = counts.failure <= counts.success;
-      this.health.set(b.id, { ok, reason: ok ? undefined : 'REQUEST_FAILURE_RATE', at: Date.now() });
-      if (ok) {
-        this.advertise.set(b.id, true);
-      } else {
-        if (this.advertise.get(b.id) !== false) this.emit('autodown', `${b.id} REQUEST_FAILURE_RATE`);
-        this.advertise.set(b.id, false);
-      }
+    if (previous?.ok && counts.failure <= counts.success) {
+      this.health.set(b.id, { ok: true, at: Date.now() });
+      this.advertise.set(b.id, true);
       return;
     }
+    // Consumer failures can be caused by malformed requests, so confirm a
+    // failure majority with an independent probe before taking the backend down.
     const r = await probeHealth(b);
     if (this.operation.get(b.id) !== operation || this.backends.get(b.id) !== b) return;
     this.health.set(b.id, { ok: r.ok, reason: r.reason, at: Date.now() });

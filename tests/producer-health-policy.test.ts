@@ -66,16 +66,19 @@ describe('producer adaptive health policy', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(daemon.status().backends[0]?.lastHealth?.ok).toBe(true);
 
-    daemon.recordRequestResult(backend.id, { ok: false, reason: 'NETWORK' });
-    await daemon.check();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(daemon.status().backends[0]?.lastHealth).toEqual(expect.objectContaining({
-      ok: false,
-      reason: 'REQUEST_FAILURE_RATE',
-    }));
-
+    daemon.recordRequestResult(backend.id, { ok: false, reason: 'HTTP' });
     await daemon.check();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(daemon.status().backends[0]?.lastHealth?.ok).toBe(true);
+
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 500 }));
+    daemon.recordRequestResult(backend.id, { ok: false, reason: 'NETWORK' });
+    await daemon.check();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(daemon.status().backends[0]?.lastHealth).toEqual(expect.objectContaining({ ok: false, reason: 'HTTP' }));
+
+    await daemon.check();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(daemon.status().backends[0]?.lastHealth?.ok).toBe(true);
   });
 
