@@ -1,6 +1,34 @@
 import type { ToolId } from '../tool-support';
-import type { Protocol } from '@fasten-share/contracts/producer';
-export type { Candidate, Offering, Protocol } from '@fasten-share/contracts/producer';
+
+export type Protocol =
+  | 'openai'
+  | 'openai-response'
+  | 'gemini'
+  | 'anthropic'
+  | 'azure-openai'
+  | 'ollama'
+  | string;
+
+export interface Offering {
+  protocol: Protocol;
+  models: string[];
+  costMultipliers?: Record<string, number>;
+  supportedTools?: Record<string, ToolId[]>;
+  versionPrefixes?: Record<string, string>;
+  maxConcurrency?: Record<string, number>;
+}
+
+export interface Candidate {
+  peerId: string;
+  models: string[];
+  protocol: Protocol;
+  rttToServer: number;
+  onlineMs: number;
+  userId: string;
+  costMultipliers?: Record<string, number>;
+  supportedTools?: Record<string, ToolId[]>;
+  versionPrefixes?: Record<string, string>;
+}
 
 export interface BackendConfig {
   id: string;

@@ -14,23 +14,18 @@ import { normalizeMaxConcurrency } from '../concurrency';
 import { normalizeSupportedTools } from '../tool-support';
 import { versionPrefixOrDefault } from '../version-prefix';
 import { SERVICE_URL } from './service-url';
-import { normalizeProtocol } from '@fasten-share/contracts/producer';
 
 const DATA_DIR = process.env.FS_DATA_DIR || join(homedir(), '.fasten-share');
 const CONFIG_PATH = join(DATA_DIR, 'config.json');
 /** Ensure a backend has a stable id (older configs / env seeds may lack one). */
-type BackendInput = Omit<BackendConfig, 'id' | 'protocol'> & { id?: string; protocol?: unknown };
-
-function withId(b: BackendInput): BackendConfig {
-  const protocol = normalizeProtocol(b.protocol);
+function withId(b: Omit<BackendConfig, 'id'> & { id?: string }): BackendConfig {
   return {
     ...b,
     id: b.id || randomUUID(),
-    protocol,
     costMultiplier: normalizeCostMultiplier(b.costMultiplier),
     maxConcurrency: normalizeMaxConcurrency(b.maxConcurrency),
-    supportedTools: normalizeSupportedTools(b.supportedTools, protocol),
-    versionPrefix: versionPrefixOrDefault(b.versionPrefix, protocol),
+    supportedTools: normalizeSupportedTools(b.supportedTools, b.protocol),
+    versionPrefix: versionPrefixOrDefault(b.versionPrefix, b.protocol),
   };
 }
 
@@ -69,7 +64,7 @@ function backendsFromEnv(): BackendConfig[] {
 /** Legacy single-backend shape (pre §20) read for one-time migration. */
 type LegacyConfig = Partial<NodeConfig> & {
   producerId?: string;
-  backend?: BackendInput | null;
+  backend?: (Omit<BackendConfig, 'id'> & { id?: string }) | null;
 };
 
 function read(): NodeConfig {

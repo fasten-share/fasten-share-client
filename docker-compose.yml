@@ -5,9 +5,7 @@
 # The producer opens an outbound WebSocket to fasten-share-server.
 services:
   client:
-    build:
-      context: ..
-      dockerfile: fasten-share-client/Dockerfile
+    build: .
     image: fasten-share-client
     container_name: fasten-share-client
     environment:
