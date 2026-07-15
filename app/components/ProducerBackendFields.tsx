@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { normalizeMaxConcurrency } from '@/lib/concurrency';
-import { normalizeCostMultiplier } from '@/lib/cost';
+import { MIN_COST_MULTIPLIER, normalizeCostMultiplier } from '@/lib/cost';
 import { useI18n } from '@/lib/i18n/context';
 import { TOOL_IDS, normalizeSupportedTools, toolsForProtocol } from '@/lib/tool-support';
 import { defaultVersionPrefix, normalizeVersionPrefix } from '@/lib/version-prefix';
@@ -137,7 +137,7 @@ export function BackendFields({
         {t('producer.costMultiplier')}
         <span className={styles.helpDot} title={t('producer.costMultiplierHelp')} aria-label={t('producer.costMultiplierHelp')}>?</span>
       </label>
-      <input type="number" disabled={disabled} min="0.01" max="100" step="0.01" value={value.costMultiplier} onChange={(e) => onChange({ costMultiplier: normalizeCostMultiplier(e.target.value) })} />
+      <input type="number" disabled={disabled} min={MIN_COST_MULTIPLIER} max="100" step={MIN_COST_MULTIPLIER} value={value.costMultiplier} onChange={(e) => onChange({ costMultiplier: normalizeCostMultiplier(e.target.value) })} />
 
       <label>{t('producer.maxConcurrency')}</label>
       <input type="number" disabled={disabled} min="1" step="1" value={value.maxConcurrency} onChange={(e) => onChange({ maxConcurrency: normalizeMaxConcurrency(e.target.value) })} />

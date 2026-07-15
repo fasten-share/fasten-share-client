@@ -15,6 +15,8 @@ describe('numeric configuration normalization', () => {
 
   it('clamps cost multipliers and accepts numeric strings', () => {
     expect(normalizeCostMultiplier('2.5')).toBe(2.5);
+    expect(normalizeCostMultiplier('0.001')).toBe(MIN_COST_MULTIPLIER);
+    expect(normalizeCostMultiplier('0.0009')).toBe(MIN_COST_MULTIPLIER);
     expect(normalizeCostMultiplier(0)).toBe(MIN_COST_MULTIPLIER);
     expect(normalizeCostMultiplier(-100)).toBe(MIN_COST_MULTIPLIER);
     expect(normalizeCostMultiplier(1000)).toBe(MAX_COST_MULTIPLIER);

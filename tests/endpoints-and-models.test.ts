@@ -30,7 +30,7 @@ describe('producer form model', () => {
 
   it('normalizes persisted backend values into a card', () => {
     expect(toCard({ id: 'b1', baseUrl: 'https://api', protocol: 'openai', models: ['a', 'b'], apiKey: '', costMultiplier: 0, maxConcurrency: 0, supportedTools: ['codex'], enabled: undefined })).toMatchObject({
-      id: 'b1', modelsText: 'a, b', costMultiplier: 0.01, maxConcurrency: 5, supportedTools: ['curl'], enabled: true, versionPrefix: '/v1',
+      id: 'b1', modelsText: 'a, b', costMultiplier: 0.001, maxConcurrency: 5, supportedTools: ['curl'], enabled: true, versionPrefix: '/v1',
     });
   });
 

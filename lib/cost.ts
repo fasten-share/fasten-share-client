@@ -1,5 +1,5 @@
 export const DEFAULT_COST_MULTIPLIER = 1;
-export const MIN_COST_MULTIPLIER = 0.01;
+export const MIN_COST_MULTIPLIER = 0.001;
 export const MAX_COST_MULTIPLIER = 999;
 
 export function normalizeCostMultiplier(value: unknown): number {
