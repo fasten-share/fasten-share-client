@@ -10,6 +10,11 @@ import {
   type ReactNode,
 } from 'react';
 import { dictionaries, type Lang, type MessageKey } from './dictionary';
+import {
+  getDesktopLanguage,
+  setDesktopLanguage,
+  subscribeToDesktopLanguage,
+} from './desktop-language';
 
 const STORAGE_KEY = 'fs-lang';
 const DEFAULT_LANG: Lang = 'en';
@@ -39,6 +44,12 @@ function readLang(): Lang {
   return navigator.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en';
 }
 
+function readStoredLang(): Lang | null {
+  if (typeof window === 'undefined') return null;
+  const stored = window.localStorage.getItem(STORAGE_KEY);
+  return stored === 'en' || stored === 'zh' ? stored : null;
+}
+
 function getSnapshot(): Lang {
   if (cachedLang === null) cachedLang = readLang();
   return cachedLang;
@@ -54,11 +65,12 @@ function subscribe(cb: () => void): () => void {
 }
 
 function setLangGlobal(next: Lang): void {
+  const changed = cachedLang !== next;
   cachedLang = next;
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(STORAGE_KEY, next);
   }
-  listeners.forEach((l) => l());
+  if (changed) listeners.forEach((l) => l());
 }
 
 function interpolate(template: string, vars?: Record<string, string | number>): string {
@@ -76,7 +88,34 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  const setLang = useCallback((next: Lang) => setLangGlobal(next), []);
+  useEffect(() => {
+    let active = true;
+    const storedLanguage = readStoredLang();
+    const initialLanguage = getSnapshot();
+
+    if (storedLanguage) {
+      void setDesktopLanguage(storedLanguage);
+    } else {
+      void getDesktopLanguage().then((desktopLanguage) => {
+        if (active && desktopLanguage && getSnapshot() === initialLanguage) {
+          setLangGlobal(desktopLanguage);
+        }
+      });
+    }
+
+    const unsubscribe = subscribeToDesktopLanguage((desktopLanguage) => {
+      if (active) setLangGlobal(desktopLanguage);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const setLang = useCallback((next: Lang) => {
+    setLangGlobal(next);
+    void setDesktopLanguage(next);
+  }, []);
 
   const t = useCallback<TFunction>(
     (key, vars) => {
