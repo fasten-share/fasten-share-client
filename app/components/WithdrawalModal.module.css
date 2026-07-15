@@ -3,6 +3,11 @@
 .form { display: grid; gap: 10px; }
 .form label { display: grid; gap: 5px; }
 .form input { width: 100%; }
+.estimate { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+.estimate > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.estimate strong { font-size: 1.35rem; }
+.estimate small { display: block; margin-top: 4px; color: var(--muted); }
+.estimate .estimateError { color: var(--danger, #dc2626); }
 .history { display: grid; gap: 10px; }
 .record { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
 .record > div { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
