@@ -61,6 +61,7 @@ describe('consumer command helpers', () => {
     expect(targetKey(target)).toBe('openai\0模型/a\0peer-1');
     expect(formatMultiplier(1)).toBe('1x');
     expect(formatMultiplier(1.25)).toBe('1.25x');
+    expect(formatMultiplier(0.001)).toBe('0.001x');
   });
 
   it('base64url-encodes model names in curl routes', () => {
