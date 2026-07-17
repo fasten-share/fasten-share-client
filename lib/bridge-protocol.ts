@@ -14,12 +14,13 @@ import type { ProducerStatus } from './server/types';
 /** Node -> page commands. */
 export type BridgeCommand = {
   t: 'status';
+  userId: string;
   producer: ProducerStatus;
   connectedProducers: { protocol: string; peerId: string }[];
   configRevision: number;
   // Node owns signaling, so it includes its state for the passive page to render.
   node: { signaling: { connected: boolean; peerId?: string } };
-} | { t: 'forcedLogout'; code: 'DEVICE_LIMIT_EXCEEDED' };
+} | { t: 'forcedLogout'; userId: string; code: 'DEVICE_LIMIT_EXCEEDED' };
 
 /** Default port for the local status channel; overridable via FS_WS_PORT. */
 export const DEFAULT_WS_PORT = 8087;

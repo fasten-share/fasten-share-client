@@ -90,10 +90,11 @@ export function startStatusLink(
 
   function onCommand(cmd: BridgeCommand): void {
     if (cmd.t === 'forcedLogout') {
-      window.dispatchEvent(new CustomEvent('fs:forced-logout', { detail: cmd.code }));
+      if (cmd.userId === status.userId) window.dispatchEvent(new CustomEvent('fs:forced-logout', { detail: cmd.code }));
       return;
     }
     if (cmd.t !== 'status') return; // config/register/etc. don't apply to a passive page
+    if (cmd.userId !== status.userId) return;
     if (cmd.configRevision !== status.configRevision) {
       requestedConfigRevision = cmd.configRevision;
       configRefresh ??= (async () => {

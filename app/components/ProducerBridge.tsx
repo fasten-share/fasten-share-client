@@ -9,6 +9,7 @@ import { getStatus, type Status } from '@/lib/control-client';
 /** Minimal status used until the first getStatus()/push arrives. */
 function emptyStatus(): Status {
   return {
+    userId: '',
     configRevision: 0,
     transport: { ready: false, wsPort: DEFAULT_WS_PORT },
     signaling: { connected: false },

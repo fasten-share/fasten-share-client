@@ -1,5 +1,6 @@
 import { proxyServer } from '@/lib/server/auth';
 import { getCore } from '@/lib/server/core';
+import { withLocalSession } from '@/lib/server/local-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!upstream.ok) return upstream;
   const data = await upstream.json() as Record<string, unknown>;
   if (typeof data.accessToken !== 'string') return Response.json({ error: 'Invalid replacement response.' }, { status: 502 });
-  const encryptionKey = getCore().beginEncryptionSession(data.accessToken);
-  return Response.json({ ...data, encryptionKey });
+  if (!data.user || typeof data.user !== 'object') return Response.json({ error: 'Invalid replacement response.' }, { status: 502 });
+  const encryptionKey = getCore().beginEncryptionSession(data.accessToken, data.user as never);
+  return withLocalSession(Response.json({ ...data, encryptionKey }), (data.user as { id: string }).id);
 }

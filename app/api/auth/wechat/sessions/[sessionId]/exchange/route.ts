@@ -1,6 +1,7 @@
 import { proxyServer } from '@/lib/server/auth';
 import { getCore } from '@/lib/server/core';
 import { config } from '@/lib/server/config';
+import { withLocalSession } from '@/lib/server/local-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,15 @@ export async function POST(req: Request, ctx: RouteContext<'/api/auth/wechat/ses
   if (typeof data.accessToken !== 'string' || !data.accessToken) {
     return Response.json({ error: 'Login response did not contain an access token.' }, { status: 502 });
   }
-  const encryptionKey = getCore().beginEncryptionSession(data.accessToken);
-  return Response.json({ ...data, encryptionKey });
+  if (!data.user || typeof data.user !== 'object') return Response.json({ error: 'Login response did not contain a user.' }, { status: 502 });
+  let encryptionKey: string;
+  try {
+    encryptionKey = getCore().beginEncryptionSession(data.accessToken, data.user as never);
+  } catch (error) {
+    if ((error as { code?: string }).code === 'ACCOUNT_LIMIT_EXCEEDED') {
+      return Response.json({ error: 'ACCOUNT_LIMIT_EXCEEDED', code: 'ACCOUNT_LIMIT_EXCEEDED' }, { status: 409 });
+    }
+    throw error;
+  }
+  return withLocalSession(Response.json({ ...data, encryptionKey }), (data.user as { id: string }).id);
 }

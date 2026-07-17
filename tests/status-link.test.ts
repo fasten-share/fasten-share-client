@@ -33,6 +33,7 @@ class FakeWebSocket {
 }
 
 const seed = (): Status => ({
+  userId: '1',
   configRevision: 0,
   transport: { ready: false, wsPort: DEFAULT_WS_PORT },
   signaling: { connected: false },
@@ -69,7 +70,7 @@ describe('status link', () => {
     socket.message(JSON.stringify({ t: 'config' }));
     expect(onStatus).toHaveBeenCalledTimes(1);
     socket.message(JSON.stringify({
-      t: 'status',
+      t: 'status', userId: '1',
       configRevision: 0,
       producer: { running: true, registered: true, backends: [] },
       connectedProducers: [{ protocol: 'openai', peerId: 'p1' }],
@@ -102,7 +103,7 @@ describe('status link', () => {
 
     handle.syncStatus(saved);
     FakeWebSocket.instances[0].message(JSON.stringify({
-      t: 'status',
+      t: 'status', userId: '1',
       configRevision: 0,
       producer: { running: true, registered: true, backends: [] },
       connectedProducers: [],
@@ -127,7 +128,7 @@ describe('status link', () => {
     mocks.getStatus.mockResolvedValue(refreshed);
     const handle = startStatusLink(9000, onStatus, seed());
     FakeWebSocket.instances[0].message(JSON.stringify({
-      t: 'status',
+      t: 'status', userId: '1',
       configRevision: 1,
       producer: { running: true, registered: true, backends: [] },
       connectedProducers: [],
@@ -154,7 +155,7 @@ describe('status link', () => {
     mocks.getStatus.mockResolvedValue(restarted);
     const handle = startStatusLink(9000, onStatus, previousProcess);
     FakeWebSocket.instances[0].message(JSON.stringify({
-      t: 'status',
+      t: 'status', userId: '1',
       configRevision: 0,
       producer: { running: false, registered: false, backends: [] },
       connectedProducers: [],
@@ -170,7 +171,7 @@ describe('status link', () => {
     const listener = vi.fn();
     window.addEventListener('fs:forced-logout', listener);
     const handle = startStatusLink(9000, vi.fn(), seed());
-    FakeWebSocket.instances[0].message(JSON.stringify({ t: 'forcedLogout', code: 'DEVICE_LIMIT_EXCEEDED' }));
+    FakeWebSocket.instances[0].message(JSON.stringify({ t: 'forcedLogout', userId: '1', code: 'DEVICE_LIMIT_EXCEEDED' }));
     expect(listener).toHaveBeenCalledOnce();
     expect((listener.mock.calls[0][0] as CustomEvent).detail).toBe('DEVICE_LIMIT_EXCEEDED');
     handle.stop();

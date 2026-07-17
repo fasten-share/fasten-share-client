@@ -33,6 +33,7 @@ export interface BackendHealth {
 }
 
 export interface Status {
+  userId: string;
   configRevision: number;
   transport: { ready: boolean; wsPort: number };
   signaling: { connected: boolean; peerId?: string };

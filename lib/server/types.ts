@@ -44,17 +44,6 @@ export interface BackendConfig {
   versionPrefix?: string;
 }
 
-export interface NodeConfig {
-  deviceId: string;
-  deviceName: string;
-  serverUrl: string;
-  autoShare: boolean;
-  producerIds: Record<string, string>;
-  producerIdsServerIssued: boolean;
-  backendOwnerUserId?: string;
-  backends: BackendConfig[];
-}
-
 export interface BackendStatus {
   id: string;
   protocol: Protocol;

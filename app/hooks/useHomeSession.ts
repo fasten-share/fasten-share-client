@@ -4,15 +4,18 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   forceDeviceLogout,
+  loadLocalAccounts,
   loadConsumerApiKeys,
   loadMe,
   logout,
   renewAccessTokenIfNeeded,
   setAuthNotice,
   startAccessTokenRenewal,
+  switchLocalAccount,
   type AuthError,
   type ConsumerApiKeyDto,
   type UserDto,
+  type LocalAccount,
 } from '@/lib/client/auth';
 import { useI18n } from '@/lib/i18n/context';
 
@@ -22,6 +25,7 @@ export function useHomeSession() {
   const router = useRouter();
   const { t } = useI18n();
   const [user, setUser] = useState<UserDto | null>(null);
+  const [accounts, setAccounts] = useState<LocalAccount[]>([]);
   const [apiKeys, setApiKeys] = useState<ConsumerApiKeyDto[]>([]);
   const [selectedApiKeyId, setSelectedApiKeyId] = useState('');
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
@@ -43,6 +47,7 @@ export function useHomeSession() {
       .then((nextUser) => {
         if (!alive) return;
         setUser(nextUser);
+        void loadLocalAccounts().then(setAccounts).catch(() => undefined);
         if (!nextUser) return router.replace('/login');
         stopRenewal = startAccessTokenRenewal((error) => {
           if (!alive) return;
@@ -133,15 +138,25 @@ export function useHomeSession() {
   }, [router]);
 
   const onLogout = useCallback(async () => {
+    const currentId = user?.id;
     await logout();
     setUser(null);
     setApiKeys([]);
     setSelectedApiKeyId('');
-    router.replace('/login');
-  }, [router]);
+    const remaining = (await loadLocalAccounts().catch(() => [])).filter((item) => item.user.id !== currentId && item.state === 'active');
+    if (remaining[0]) {
+      await switchLocalAccount(remaining.sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0].user.id);
+      window.location.assign('/');
+    } else router.replace('/login');
+  }, [router, user?.id]);
+
+  const switchAccount = useCallback(async (userId: string) => {
+    await switchLocalAccount(userId);
+    window.location.assign('/');
+  }, []);
 
   return {
-    user, setUser, apiKeys, selectedApiKeyId, setSelectedApiKeyId,
+    user, setUser, accounts, switchAccount, apiKeys, selectedApiKeyId, setSelectedApiKeyId,
     apiKeysLoading, apiKeysError, authLoading, updateApiKeys, refreshUser, onLogout,
   };
 }
