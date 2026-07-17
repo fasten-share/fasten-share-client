@@ -1,12 +1,13 @@
 import { proxyServer } from '@/lib/server/auth';
 import { getCore } from '@/lib/server/core';
 import { config } from '@/lib/server/config';
-import { withLocalSession } from '@/lib/server/local-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request, ctx: RouteContext<'/api/auth/wechat/sessions/[sessionId]/exchange'>): Promise<Response> {
+interface Context { params: Promise<{ sessionId: string }> }
+
+export async function POST(req: Request, ctx: Context): Promise<Response> {
   const { sessionId } = await ctx.params;
   const upstream = await proxyServer(`/api/v1/auth/wechat/sessions/${encodeURIComponent(sessionId)}/exchange`, {
     method: 'POST',
@@ -32,5 +33,5 @@ export async function POST(req: Request, ctx: RouteContext<'/api/auth/wechat/ses
     }
     throw error;
   }
-  return withLocalSession(Response.json({ ...data, encryptionKey }), (data.user as { id: string }).id);
+  return Response.json({ ...data, encryptionKey });
 }

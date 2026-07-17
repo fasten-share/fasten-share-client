@@ -130,8 +130,21 @@ export class AccountRuntime {
     if (publisherUserIds?.length) url.searchParams.set('publisherUserIds', publisherUserIds.join(','));
     if (cursor) url.searchParams.set('cursor', cursor);
     url.searchParams.set('limit', String(limit));
-    const response = await fetch(url, { headers: { authorization: `Bearer ${this.accessToken}` }, cache: 'no-store' });
-    if (!response.ok) throw new Error(`producer discovery failed (${response.status})`);
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        headers: { authorization: `Bearer ${this.accessToken}` },
+        cache: 'no-store',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw Object.assign(new Error(`fasten-share-server unreachable: ${message}`), { status: 502 });
+    }
+    if (!response.ok) {
+      throw Object.assign(new Error(`producer discovery failed (${response.status})`), {
+        status: response.status,
+      });
+    }
     const data = await response.json() as { candidates?: Candidate[]; nextCursor?: string | null; hasMore?: boolean; limit?: number };
     return { candidates: data.candidates ?? [], nextCursor: data.nextCursor ?? null, hasMore: data.hasMore === true, limit: data.limit ?? limit };
   }
@@ -186,21 +199,7 @@ export class Core {
   encryptionKeyForToken(token: string | null): string | null { return this.runtimeForToken(token)?.encryptionKey ?? null; }
   clearEncryptionSession(token?: string | null): void { const id = token ? tokenUserId(token) : null; if (id) this.logout(id); }
   setAccessToken(token: string | null): void { if (!token) return; const runtime = this.runtimeForToken(token); runtime?.setToken(token); if (runtime) accountStore.updateToken(runtime.userId, token); }
-  accounts() {
-    type Summary = { user: UserDto; lastUsedAt: number; state: 'active' | 'reauth-required' | 'signed-out'; running: boolean };
-    const active = new Map(accountStore.accounts().map((account) => [account.user.id, account]));
-    const result: Summary[] = accountStore.accounts().map(({ user, lastUsedAt, state }) => ({ user, lastUsedAt, state, running: this.runtimes.get(user.id)?.status().producer.running ?? false }));
-    for (const userId of accountStore.profileUserIds()) {
-      if (active.has(userId)) continue;
-      const user = accountStore.readProfile(userId).user;
-      if (user) result.push({ user, lastUsedAt: 0, state: 'signed-out', running: false });
-    }
-    return result;
-  }
-  accountCredentials(userId: string) { return accountStore.account(userId); }
-  selectAccount(userId: string): void { accountStore.touch(userId); config.setLastActiveUserId(userId); }
   logout(userId: string): void { this.runtimes.get(userId)?.stop(); this.runtimes.delete(userId); accountStore.logout(userId); }
-  deleteProfile(userId: string): void { this.logout(userId); accountStore.deleteProfile(userId); }
   private invalidate(userId: string): void { this.runtimes.get(userId)?.stop(); this.runtimes.delete(userId); accountStore.requireReauth(userId); }
 }
 

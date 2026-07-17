@@ -27,7 +27,7 @@ export default function Home() {
   const [referralOpen, setReferralOpen] = useState(false);
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
-  const { user, setUser, accounts, switchAccount, apiKeys, selectedApiKeyId, setSelectedApiKeyId,
+  const { user, setUser, apiKeys, selectedApiKeyId, setSelectedApiKeyId,
     apiKeysLoading, apiKeysError, authLoading, updateApiKeys, refreshUser, onLogout } = useHomeSession();
   const [tab, setTab] = usePersistentTab(user?.id);
   const { status, setStatus, signalUrl, setBridgeHandle, autoShareNotice,
@@ -110,15 +110,6 @@ export default function Home() {
             <details className={styles.accountMenu} ref={accountMenuRef}>
               <summary aria-label={t('auth.accountMenu')} title={t('auth.accountMenu')}>⋯</summary>
               <div className={styles.accountMenuPanel}>
-                {accounts.filter((account) => account.user.id !== user.id).map((account) => (
-                  <button key={account.user.id} type="button" disabled={account.state !== 'active'} onClick={() => void switchAccount(account.user.id)}>
-                    {account.user.displayName || t('auth.userFallback', { id: account.user.id })}{account.running ? ' · 在线' : ''}
-                  </button>
-                ))}
-                <button type="button" onClick={() => { window.location.assign('/login?add=1'); }}>
-                  添加账号
-                </button>
-                <div className={styles.accountMenuDivider} />
                 <button type="button" onClick={() => openFromAccountMenu(() => setRechargeOpen(true))}>
                   {t('recharge.entry')}
                 </button>

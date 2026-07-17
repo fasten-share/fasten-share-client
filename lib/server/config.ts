@@ -12,7 +12,6 @@ export interface DeviceConfig {
   deviceName: string;
   serverUrl: string;
   lastActiveUserId?: string;
-  sessionSecret: string;
 }
 
 function writeAtomic(path: string, value: unknown): void {
@@ -36,7 +35,6 @@ function read(): DeviceConfig {
         deviceName: stored.deviceName || hostname().slice(0, 120) || 'Unknown device',
         serverUrl: SERVICE_URL,
         lastActiveUserId: stored.lastActiveUserId,
-        sessionSecret: stored.sessionSecret || randomUUID(),
       };
     }
   } catch {}
@@ -44,7 +42,6 @@ function read(): DeviceConfig {
     deviceId: randomUUID(),
     deviceName: hostname().slice(0, 120) || 'Unknown device',
     serverUrl: SERVICE_URL,
-    sessionSecret: randomUUID(),
   };
   writeAtomic(DEVICE_PATH, fresh);
   return fresh;

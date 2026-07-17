@@ -87,7 +87,7 @@ The client can be configured from the UI. It also supports environment variables
 | `FS_DATA_DIR` | Directory for local client config | `~/.fasten-share` |
 | `FS_CREDENTIAL_KEY` | Multi-account credential master key; desktop builds use OS-protected storage | Restricted machine-local key file |
 
-The client can keep up to five signed-in accounts running concurrently. Backend configuration, upstream API keys, auto-share preferences, and producer connections are isolated per account. Switching the visible account does not stop background sharing for other accounts. Logging out removes that account's credentials and stops its runtime while retaining its profile for restoration after signing in again. The V2 account store deliberately does not read or migrate legacy single-account configuration.
+The client runtime can isolate and keep up to five signed-in accounts running concurrently. Backend configuration, upstream API keys, auto-share preferences, and producer connections are isolated per account. The UI does not expose add-account or account-switching controls; account changes only occur through the normal login flow. Logging out removes that account's credentials and stops its runtime while retaining its profile for restoration after the same account signs in again. The V2 account store deliberately does not read or migrate legacy single-account configuration.
 
 ### Producer backend seed
 

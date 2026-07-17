@@ -160,13 +160,23 @@ export async function POST(req: Request): Promise<Response> {
             ),
           )].slice(0, 500)
         : undefined;
-      const list = await runtime.discoverModels(
-        String(body.keyword ?? ''),
-        String(body.protocol ?? ''),
-        publisherUserIds,
-        typeof body.cursor === 'string' ? body.cursor : undefined,
-        Number(body.limit ?? 20),
-      );
+      let list: Awaited<ReturnType<typeof runtime.discoverModels>>;
+      try {
+        list = await runtime.discoverModels(
+          String(body.keyword ?? ''),
+          String(body.protocol ?? ''),
+          publisherUserIds,
+          typeof body.cursor === 'string' ? body.cursor : undefined,
+          Number(body.limit ?? 20),
+        );
+      } catch (error) {
+        const status = Number((error as { status?: unknown }).status);
+        const responseStatus = Number.isInteger(status) && status >= 400 && status <= 599 ? status : 502;
+        return Response.json({
+          error: error instanceof Error ? error.message : 'producer discovery failed',
+          code: responseStatus === 502 ? 'SERVICE_UNREACHABLE' : 'DISCOVERY_FAILED',
+        }, { status: responseStatus });
+      }
       return Response.json(securedStatus(runtime, session.key, list));
     }
     case 'setBackends':

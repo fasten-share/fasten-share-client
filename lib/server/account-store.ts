@@ -81,10 +81,6 @@ export const accountStore = {
     saveAccounts();
     this.saveProfile({ ...this.readProfile(user.id), user });
   },
-  touch(userId: string): void {
-    accounts = accounts.map((item) => item.user.id === userId ? { ...item, lastUsedAt: Date.now() } : item);
-    saveAccounts();
-  },
   updateToken(userId: string, token: string): void {
     accounts = accounts.map((item) => item.user.id === userId ? { ...item, token } : item);
     saveAccounts();

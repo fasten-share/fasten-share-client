@@ -10,10 +10,6 @@ import {
   createWechatLoginSession,
   exchangeWechatLogin,
   replaceDevice,
-  loadLocalAccounts,
-  switchLocalAccount,
-  type LocalAccount,
-  deleteLocalProfile,
   type WechatLoginSession,
 } from '@/lib/client/auth';
 import type { DeviceLimitResult } from '@/lib/client/auth-types';
@@ -75,19 +71,6 @@ function LoginContent() {
   const [scriptFailed, setScriptFailed] = useState(false);
   const [remaining, setRemaining] = useState(0);
   const [deviceLimit, setDeviceLimit] = useState<DeviceLimitResult | null>(null);
-  const [accounts, setAccounts] = useState<LocalAccount[]>([]);
-
-  useEffect(() => { void loadLocalAccounts().then(setAccounts).catch(() => undefined); }, []);
-
-  const selectAccount = useCallback(async (userId: string) => {
-    try { await switchLocalAccount(userId); router.replace('/'); router.refresh(); }
-    catch { setError('该账号需要重新登录'); }
-  }, [router]);
-
-  const deleteProfile = useCallback(async (userId: string) => {
-    await deleteLocalProfile(userId);
-    setAccounts((current) => current.filter((account) => account.user.id !== userId));
-  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -221,20 +204,6 @@ function LoginContent() {
         <div className={styles.kicker}>{t('login.kicker')}</div>
         <h1>{t('login.wechatTitle')}</h1>
         <p className="muted">{session ? t('login.scanDescription') : t('login.wechatDescription')}</p>
-
-        {!session && !deviceLimit && accounts.length > 0 ? (
-          <div className={styles.deviceList}>
-            {accounts.map((account) => (
-              <div key={account.user.id}>
-                <button type="button" disabled={account.state !== 'active'} onClick={() => void selectAccount(account.user.id)}>
-                  <strong>{account.user.displayName || `用户 ${account.user.id}`}</strong>
-                  <span>{account.state === 'active' ? (account.running ? '后台共享中' : '已登录') : '需要重新登录'}</span>
-                </button>
-                {account.state !== 'active' ? <button type="button" onClick={() => void deleteProfile(account.user.id)}>删除本地档案</button> : null}
-              </div>
-            ))}
-          </div>
-        ) : null}
 
         {deviceLimit ? (
           <div className={styles.qrStep}>
