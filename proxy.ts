@@ -25,6 +25,7 @@ function isPublicPath(pathname: string): boolean {
     pathname.startsWith('/api/auth/') ||
     pathname.startsWith('/_next/') ||
     pathname === '/favicon.ico' ||
+    pathname === '/site.webmanifest' ||
     /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/.test(pathname)
   );
 }
