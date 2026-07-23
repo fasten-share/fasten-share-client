@@ -216,6 +216,7 @@ export const zh: Record<keyof typeof en, string> = {
   'consumer.nodeId': '节点 ID',
   'consumer.userId': '用户 ID',
   'consumer.username': '用户名',
+  'consumer.officialSupply': '官方供给',
   'consumer.unnamedUser': '未命名用户',
   'consumer.followers': '粉丝数',
   'consumer.callCount': '调用次数',

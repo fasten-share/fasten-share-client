@@ -85,7 +85,14 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
                           </div>
                           <div className={styles.nodeOwner}>
                             <span title={node.userId}>{t('consumer.userId')}: {node.userId}</span>
-                            <span>{t('consumer.username')}: {node.username || t('consumer.unnamedUser')}</span>
+                            <span>
+                              {t('consumer.username')}: {node.username || t('consumer.unnamedUser')}
+                              {node.badge ? (
+                                <span className="badge green">
+                                  {node.badge === 'official' ? t('consumer.officialSupply') : node.badge}
+                                </span>
+                              ) : null}
+                            </span>
                             <span>{t('consumer.followers')}: {node.followerCount}</span>
                             <span>{t('consumer.callCount')}: {node.callCount}</span>
                             <span>

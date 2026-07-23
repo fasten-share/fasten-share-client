@@ -44,6 +44,7 @@ export interface UserSummaryDto {
   username: string | null;
   followerCount: number;
   callCount: number;
+  badge: string | null;
 }
 
 export interface FollowStatusDto {

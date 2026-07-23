@@ -216,6 +216,7 @@ export const en = {
   'consumer.nodeId': 'Node ID',
   'consumer.userId': 'User ID',
   'consumer.username': 'Username',
+  'consumer.officialSupply': 'Official supply',
   'consumer.unnamedUser': 'Unnamed user',
   'consumer.followers': 'Followers',
   'consumer.callCount': 'Call count',

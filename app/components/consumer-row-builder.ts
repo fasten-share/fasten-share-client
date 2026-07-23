@@ -21,6 +21,7 @@ export function buildConsumerRows(
         row.nodes.push({
           peerId: candidate.peerId, rttToServer: candidate.rttToServer, onlineMs: candidate.onlineMs, userId: candidate.userId,
           username: summary?.username ?? null, followerCount: followed.get(candidate.userId)?.followerCount ?? summary?.followerCount ?? 0,
+          badge: followed.get(candidate.userId)?.badge ?? summary?.badge ?? null,
           callCount: summary?.callCount ?? 0, costMultiplier: candidate.costMultipliers?.[model] ?? 1,
           following: scope === 'following' || followed.has(candidate.userId), rating: rating?.rating ?? 0,
           rated: rating?.rated ?? false, myRating: rating?.myRating ?? null,

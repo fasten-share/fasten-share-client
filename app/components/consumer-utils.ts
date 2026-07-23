@@ -7,6 +7,7 @@ export interface ConsumerNodeRow {
   onlineMs: number;
   userId: string;
   username: string | null;
+  badge: string | null;
   followerCount: number;
   callCount: number;
   costMultiplier: number;
