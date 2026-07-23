@@ -39,7 +39,14 @@ export function ConsumerSearchPanel({ state, apiKeys, apiKeysLoading, apiKeysErr
             <div className={styles.followingOptions}>{followedUsers.map((user) => (
               <label className={styles.followingOption} key={user.userId}>
                 <input type="checkbox" checked={selectedFollowingUserIds.includes(user.userId)} onChange={(event) => setSelectedFollowingUserIds((current) => event.target.checked ? [...current, user.userId] : current.filter((id) => id !== user.userId))} />
-                <span className={styles.followingName}>{user.username || t('consumer.unnamedUser')}</span>
+                <span className={styles.followingName}>
+                  {user.username || t('consumer.unnamedUser')}
+                  {user.badge ? (
+                    <span className="badge green">
+                      {user.badge === 'official' ? t('consumer.officialSupply') : user.badge}
+                    </span>
+                  ) : null}
+                </span>
                 <span className={styles.followingMetrics}>
                   <span className={styles.followerMetric}>{t('consumer.followers')}: {user.followerCount}</span>
                   <span className={styles.callCountMetric}>{t('consumer.callCount')}: {user.callCount}</span>
