@@ -9,7 +9,11 @@ import { normalizeVersionPrefix } from '@/lib/version-prefix';
 import type { EncryptedApiKey } from '@/lib/api-key-crypto-types';
 import { ENCRYPTION_SESSION_EXPIRED, INVALID_ENCRYPTED_API_KEY } from '@/lib/api-key-crypto-types';
 import { decryptApiKey, encryptApiKey } from '@/lib/server/api-key-crypto';
-import { normalizeProtocolConversions } from '@/lib/protocol-conversions';
+import {
+  consumerToolProtocol,
+  normalizeProtocolConversions,
+} from '@/lib/protocol-conversions';
+import { normalizeSupportedTools } from '@/lib/tool-support';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,10 +61,18 @@ function securedStatus(runtime: NonNullable<ReturnType<ReturnType<typeof getCore
 function normalizeBackend(backend: BackendConfig): BackendConfig | undefined {
   const versionPrefix = normalizeVersionPrefix(backend.versionPrefix);
   if (!versionPrefix) return undefined;
+  const protocolConversions = normalizeProtocolConversions(
+    backend.protocolConversions,
+    backend.protocol,
+  );
   return {
     ...backend,
     versionPrefix,
-    protocolConversions: normalizeProtocolConversions(backend.protocolConversions, backend.protocol),
+    supportedTools: normalizeSupportedTools(
+      backend.supportedTools,
+      consumerToolProtocol(protocolConversions, backend.protocol),
+    ),
+    protocolConversions,
   };
 }
 

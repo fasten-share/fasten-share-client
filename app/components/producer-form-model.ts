@@ -1,7 +1,10 @@
 import type { BackendInput, BackendView } from '@/lib/control-client';
 import { normalizeMaxConcurrency } from '@/lib/concurrency';
 import { normalizeCostMultiplier } from '@/lib/cost';
-import { normalizeProtocolConversions } from '@/lib/protocol-conversions';
+import {
+  consumerToolProtocol,
+  normalizeProtocolConversions,
+} from '@/lib/protocol-conversions';
 import { normalizeSupportedTools, type ToolId } from '@/lib/tool-support';
 import {
   defaultVersionPrefix,
@@ -45,6 +48,10 @@ export const emptyDraft = (): Draft => ({
 });
 
 export function toCard(backend: BackendView): Card {
+  const protocolConversions = normalizeProtocolConversions(
+    backend.protocolConversions,
+    backend.protocol,
+  );
   return {
     id: backend.id,
     baseUrl: backend.baseUrl,
@@ -55,9 +62,12 @@ export function toCard(backend: BackendView): Card {
     maxConcurrency: normalizeMaxConcurrency(backend.maxConcurrency),
     apiKey: backend.apiKey ?? '',
     enabled: backend.enabled !== false,
-    supportedTools: normalizeSupportedTools(backend.supportedTools, backend.protocol),
+    supportedTools: normalizeSupportedTools(
+      backend.supportedTools,
+      consumerToolProtocol(protocolConversions, backend.protocol),
+    ),
     versionPrefix: versionPrefixOrDefault(backend.versionPrefix, backend.protocol),
-    protocolConversions: normalizeProtocolConversions(backend.protocolConversions, backend.protocol),
+    protocolConversions,
   };
 }
 
@@ -66,20 +76,23 @@ export function parseModels(text: string): string[] {
 }
 
 export function toInput(card: Card): BackendInput {
+  const protocol = card.protocol.trim();
+  const protocolConversions = normalizeProtocolConversions(card.protocolConversions, protocol);
   return {
     id: card.id,
     baseUrl: card.baseUrl.trim().replace(/\/+$/, ''),
-    protocol: card.protocol.trim(),
+    protocol,
     models: parseModels(card.modelsText),
     costMultiplier: normalizeCostMultiplier(card.costMultiplier),
     maxConcurrency: normalizeMaxConcurrency(card.maxConcurrency),
     apiKey: card.apiKey || undefined,
     apiVersion: card.protocol === 'azure-openai' ? card.apiVersion.trim() || undefined : undefined,
     enabled: card.enabled,
-    supportedTools: normalizeSupportedTools(card.supportedTools, card.protocol),
+    supportedTools: normalizeSupportedTools(
+      card.supportedTools,
+      consumerToolProtocol(protocolConversions, protocol),
+    ),
     versionPrefix: normalizeVersionPrefix(card.versionPrefix) ?? card.versionPrefix.trim(),
-    protocolConversions: card.protocol === 'openai'
-      ? card.protocolConversions.filter((protocol) => protocol === 'openai-response')
-      : [],
+    protocolConversions,
   };
 }

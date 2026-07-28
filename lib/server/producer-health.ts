@@ -56,9 +56,7 @@ export function buildAdvertisedOfferings(
         models: [], costMultipliers: {}, supportedTools: {}, versionPrefixes: {}, maxConcurrency: {},
       };
       const multiplier = normalizeCostMultiplier(backend.costMultiplier);
-      const tools = protocol === backend.protocol
-        ? normalizeSupportedTools(backend.supportedTools, protocol)
-        : normalizeSupportedTools([...(backend.supportedTools ?? []), 'codex'], protocol);
+      const tools = normalizeSupportedTools(backend.supportedTools, protocol);
       for (const model of backend.models) {
         if (!entry.models.includes(model)) entry.models.push(model);
         entry.costMultipliers![model] ??= multiplier;

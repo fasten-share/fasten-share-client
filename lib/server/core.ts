@@ -11,7 +11,10 @@ import { normalizeCostMultiplier } from '../cost';
 import { normalizeMaxConcurrency } from '../concurrency';
 import { versionPrefixOrDefault } from '../version-prefix';
 import { PRODUCER_WS_PATH } from './protocol-version';
-import { normalizeProtocolConversions } from '../protocol-conversions';
+import {
+  consumerToolProtocol,
+  normalizeProtocolConversions,
+} from '../protocol-conversions';
 import { generateApiKeyEncryptionKey } from './api-key-crypto';
 
 function producerWsUrl(serverUrl: string): string {
@@ -152,14 +155,21 @@ export class AccountRuntime {
   setSignalUrl(): void { this.connection.setUrl(producerWsUrl(config.all().serverUrl)); this.changed(); }
   setAutoShare(enabled: boolean): void { this.saveProfile({ ...this.profile, autoShare: enabled }); }
   private normalizeBackend(backend: BackendConfig): BackendConfig {
+    const protocolConversions = normalizeProtocolConversions(
+      backend.protocolConversions,
+      backend.protocol,
+    );
     const normalized = {
       ...backend,
       id: backend.id || randomUUID(),
       costMultiplier: normalizeCostMultiplier(backend.costMultiplier),
       maxConcurrency: normalizeMaxConcurrency(backend.maxConcurrency),
-      supportedTools: normalizeSupportedTools(backend.supportedTools, backend.protocol),
+      supportedTools: normalizeSupportedTools(
+        backend.supportedTools,
+        consumerToolProtocol(protocolConversions, backend.protocol),
+      ),
       versionPrefix: versionPrefixOrDefault(backend.versionPrefix, backend.protocol),
-      protocolConversions: normalizeProtocolConversions(backend.protocolConversions, backend.protocol),
+      protocolConversions,
     };
     if (normalized.apiKey) return normalized;
     const previous = this.profile.backends.find((item) => item.id === normalized.id);

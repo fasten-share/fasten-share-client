@@ -31,7 +31,7 @@ Use the client as a producer to publish a backend such as:
 
 The client opens an outbound producer WebSocket to the Fasten Share service, runs health checks, and forwards streamed requests to your configured backend.
 
-An `openai` Chat Completions backend can also enable the optional `openai-response` protocol conversion in the producer form. The client then publishes both protocols and converts Responses API HTTP/SSE traffic at the producer exit, so Codex can use a stateless OpenAI-compatible backend. Stateful Responses features (`store: true`, `previous_response_id`, conversations, and background mode), hosted tools, and Responses WebSocket mode are not supported by this conversion.
+An `openai` Chat Completions backend can also select `openai-response` as its conversion target, or select no conversion, in the producer form. The client then publishes both protocols and converts Responses API HTTP/SSE traffic at the producer exit, so Codex can use a stateless OpenAI-compatible backend. Once a target is selected, the supported-consumer-tool choices are filtered by that target protocol and the converted offering advertises exactly those selected compatible tools. Stateful Responses features (`store: true`, `previous_response_id`, conversations, and background mode), hosted tools, and Responses WebSocket mode are not supported by this conversion.
 
 ### Keep credentials local
 
@@ -142,7 +142,7 @@ The development server runs the same local UI port (`8086`) but is not the recom
 3. Add a backend.
 4. Enter the backend base URL without the API version path.
 5. Select the protocol and version prefix.
-6. For an `openai` backend, optionally enable Responses protocol conversion for Codex.
+6. If conversion is available, select a target protocol or keep **Do not convert**, then choose consumer tools supported by the effective target protocol.
 7. Enter exposed model names for discovery.
 8. Set concurrency and credit multiplier.
 9. Save and start sharing.

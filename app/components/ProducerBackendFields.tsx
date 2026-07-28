@@ -4,6 +4,11 @@ import { useState } from 'react';
 import { normalizeMaxConcurrency } from '@/lib/concurrency';
 import { MIN_COST_MULTIPLIER, normalizeCostMultiplier } from '@/lib/cost';
 import { useI18n } from '@/lib/i18n/context';
+import {
+  consumerToolProtocol,
+  normalizeProtocolConversions,
+  protocolConversionTargets,
+} from '@/lib/protocol-conversions';
 import { TOOL_IDS, normalizeSupportedTools, toolsForProtocol } from '@/lib/tool-support';
 import { defaultVersionPrefix, normalizeVersionPrefix } from '@/lib/version-prefix';
 import { BaseUrlGuideModal } from './BaseUrlGuideModal';
@@ -26,6 +31,8 @@ export function BackendFields({
   const { t } = useI18n();
   const [showApiKey, setShowApiKey] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const conversionTargets = protocolConversionTargets(value.protocol);
+  const toolProtocol = consumerToolProtocol(value.protocolConversions, value.protocol);
   return (
     <>
       <div className="row">
@@ -46,10 +53,17 @@ export function BackendFields({
             onChange={(e) => {
               const protocol = e.target.value;
               const previousDefault = defaultVersionPrefix(value.protocol);
+              const protocolConversions = normalizeProtocolConversions(
+                value.protocolConversions,
+                protocol,
+              );
               onChange({
                 protocol,
-                supportedTools: normalizeSupportedTools(value.supportedTools, protocol),
-                protocolConversions: protocol === 'openai' ? value.protocolConversions : [],
+                supportedTools: normalizeSupportedTools(
+                  value.supportedTools,
+                  consumerToolProtocol(protocolConversions, protocol),
+                ),
+                protocolConversions,
                 versionPrefix: value.versionPrefix === previousDefault
                   ? defaultVersionPrefix(protocol)
                   : value.versionPrefix,
@@ -79,21 +93,30 @@ export function BackendFields({
       />
       <div className="hint">{t('producer.versionPrefixHint')}</div>
 
-      {value.protocol === 'openai' && (
-        <label className={styles.toolOption}>
-          <input
-            type="checkbox"
+      {conversionTargets.length > 0 && (
+        <>
+          <label>{t('producer.protocolConversion')}</label>
+          <select
+            value={value.protocolConversions[0] ?? ''}
             disabled={disabled}
-            checked={value.protocolConversions.includes('openai-response')}
-            onChange={(event) => onChange({
-              protocolConversions: event.target.checked ? ['openai-response'] : [],
-            })}
-          />
-          {t('producer.responsesConversion')}
-        </label>
-      )}
-      {value.protocol === 'openai' && (
-        <div className="hint">{t('producer.responsesConversionHint')}</div>
+            onChange={(event) => {
+              const protocolConversions = event.target.value ? [event.target.value] : [];
+              onChange({
+                protocolConversions,
+                supportedTools: normalizeSupportedTools(
+                  value.supportedTools,
+                  consumerToolProtocol(protocolConversions, value.protocol),
+                ),
+              });
+            }}
+          >
+            <option value="">{t('producer.protocolConversionNone')}</option>
+            {conversionTargets.map((protocol) => (
+              <option value={protocol} key={protocol}>{protocol}</option>
+            ))}
+          </select>
+          <div className="hint">{t('producer.protocolConversionHint')}</div>
+        </>
       )}
 
       {value.protocol === 'azure-openai' && (
@@ -105,7 +128,7 @@ export function BackendFields({
 
       <label>{t('producer.supportedTools')}</label>
       <div className={styles.toolList}>
-        {TOOL_IDS.filter((tool) => toolsForProtocol(value.protocol).includes(tool)).map((tool) => {
+        {TOOL_IDS.filter((tool) => toolsForProtocol(toolProtocol).includes(tool)).map((tool) => {
           const checked = value.supportedTools.includes(tool);
           return (
             <label key={tool} className={styles.toolOption}>
@@ -117,7 +140,7 @@ export function BackendFields({
                   const next = e.target.checked
                     ? [...value.supportedTools, tool]
                     : value.supportedTools.filter((item) => item !== tool);
-                  onChange({ supportedTools: normalizeSupportedTools(next, value.protocol) });
+                  onChange({ supportedTools: normalizeSupportedTools(next, toolProtocol) });
                 }}
               />
               {tool}
@@ -125,7 +148,7 @@ export function BackendFields({
           );
         })}
       </div>
-      <div className="hint">{t('producer.supportedToolsHint')}</div>
+      <div className="hint">{t('producer.supportedToolsHint', { protocol: toolProtocol })}</div>
 
       <div className="actions">
         <button className="secondary" disabled={disabled} onClick={() => onChange({ baseUrl: value.baseUrl === LOCAL_PRESET ? ONLINE_PRESET : LOCAL_PRESET })}>

@@ -30,7 +30,24 @@ describe('producer form model', () => {
 
   it('normalizes persisted backend values into a card', () => {
     expect(toCard({ id: 'b1', baseUrl: 'https://api', protocol: 'openai', models: ['a', 'b'], apiKey: '', costMultiplier: 0, maxConcurrency: 0, supportedTools: ['codex'], protocolConversions: ['anthropic', 'openai-response'], enabled: undefined })).toMatchObject({
-      id: 'b1', modelsText: 'a, b', costMultiplier: 0.001, maxConcurrency: 5, supportedTools: ['curl'], protocolConversions: ['openai-response'], enabled: true, versionPrefix: '/v1',
+      id: 'b1', modelsText: 'a, b', costMultiplier: 0.001, maxConcurrency: 5, supportedTools: ['codex'], protocolConversions: ['openai-response'], enabled: true, versionPrefix: '/v1',
+    });
+  });
+
+  it('normalizes consumer tools against the selected conversion target', () => {
+    const card = toCard({
+      id: 'converted',
+      baseUrl: 'https://api',
+      protocol: 'openai',
+      models: ['model'],
+      apiKey: '',
+      supportedTools: ['codex'],
+      protocolConversions: ['openai-response'],
+    });
+    expect(toInput(card)).toMatchObject({
+      protocol: 'openai',
+      protocolConversions: ['openai-response'],
+      supportedTools: ['codex'],
     });
   });
 

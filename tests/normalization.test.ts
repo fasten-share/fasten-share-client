@@ -3,6 +3,11 @@ import { DEFAULT_MAX_CONCURRENCY, normalizeMaxConcurrency } from '@/lib/concurre
 import { MAX_COST_MULTIPLIER, MIN_COST_MULTIPLIER, normalizeCostMultiplier } from '@/lib/cost';
 import { defaultVersionPrefix, normalizeVersionPrefix, versionPrefixOrDefault } from '@/lib/version-prefix';
 import { TOOL_IDS, isToolId, normalizeSupportedTools, toolsForProtocol } from '@/lib/tool-support';
+import {
+  consumerToolProtocol,
+  normalizeProtocolConversions,
+  protocolConversionTargets,
+} from '@/lib/protocol-conversions';
 
 describe('numeric configuration normalization', () => {
   it.each([[5, 5], ['7', 7], [2.9, 2], ['1.9', 1]])('normalizes concurrency %j to %j', (input, expected) => {
@@ -60,5 +65,16 @@ describe('tool support', () => {
     expect(normalizeSupportedTools(['hermes', 'curl', 'hermes', 'bad'])).toEqual(['curl', 'hermes']);
     expect(normalizeSupportedTools(['codex'], 'anthropic')).toEqual(['curl']);
     expect(normalizeSupportedTools(undefined)).toEqual(['curl']);
+  });
+});
+
+describe('protocol conversions', () => {
+  it('lists valid targets and uses the selected target for consumer tools', () => {
+    expect(protocolConversionTargets('openai')).toEqual(['openai-response']);
+    expect(protocolConversionTargets('anthropic')).toEqual([]);
+    expect(normalizeProtocolConversions(['anthropic', 'openai-response'], 'openai'))
+      .toEqual(['openai-response']);
+    expect(consumerToolProtocol(['openai-response'], 'openai')).toBe('openai-response');
+    expect(consumerToolProtocol([], 'openai')).toBe('openai');
   });
 });

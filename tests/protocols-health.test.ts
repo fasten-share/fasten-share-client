@@ -82,7 +82,7 @@ describe('producer health', () => {
     const result = buildAdvertisedOfferings([
       backend({
         models: ['model-a'],
-        supportedTools: ['curl', 'opencode'],
+        supportedTools: ['codex', 'opencode'],
         protocolConversions: ['openai-response'],
       }),
     ], new Map([['b1', true]]));
@@ -90,12 +90,13 @@ describe('producer health', () => {
       expect.objectContaining({
         protocol: 'openai',
         models: ['model-a'],
+        supportedTools: { 'model-a': ['opencode'] },
         versionPrefixes: { 'model-a': '/v1' },
       }),
       expect.objectContaining({
         protocol: 'openai-response',
         models: ['model-a'],
-        supportedTools: { 'model-a': ['curl', 'codex', 'opencode'] },
+        supportedTools: { 'model-a': ['codex', 'opencode'] },
         versionPrefixes: { 'model-a': '/v1' },
       }),
     ]);

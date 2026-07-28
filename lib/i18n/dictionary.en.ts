@@ -328,7 +328,7 @@ export const en = {
     'The higher the credit cost multiplier, the more credits you earn for producing tokens. The lower the multiplier, the more likely your tokens are to be used sooner.',
   'producer.maxConcurrency': 'Maximum concurrent requests',
   'producer.supportedTools': 'Supported consumer tools',
-  'producer.supportedToolsHint': 'At least one is required. Claude requires anthropic; Codex requires openai-response; OpenCode supports openai and openai-response.',
+  'producer.supportedToolsHint': 'Options are filtered for {protocol}; at least one is required. Claude requires anthropic, while Codex requires openai-response.',
   'producer.saveStart': 'Save & start sharing',
   'producer.starting': 'Starting…',
   'producer.stop': 'Stop sharing',
@@ -358,8 +358,9 @@ export const en = {
   'producer.healthOk': 'Last health check: OK',
   'producer.healthFailed': 'Last health check: FAILED ({reason})',
   'producer.healthReasonUnknown': 'unknown',
-  'producer.responsesConversion': 'Support Codex through Responses conversion',
-  'producer.responsesConversionHint': 'Also advertises openai-response and converts requests locally to Chat Completions. Stateful sessions and hosted tools are unsupported.',
+  'producer.protocolConversion': 'Convert to protocol',
+  'producer.protocolConversionNone': 'Do not convert',
+  'producer.protocolConversionHint': 'A selected target is also advertised and requests are converted locally. Consumer tool options follow the target protocol. The openai-response conversion does not support stateful sessions or hosted tools.',
   'producer.healthHint':
     'Health runs every 30s. Quota/auth failures auto-remove you from the network.',
 };
