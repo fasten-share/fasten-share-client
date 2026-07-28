@@ -47,10 +47,14 @@ export function buildAdvertisedOfferings(
   const byProtocol = new Map<BackendConfig['protocol'], Omit<Offering, 'protocol'>>();
   for (const backend of backends) {
     if (backend.enabled === false || advertise.get(backend.id) !== true) continue;
-    const protocols = [
+    const convertedProtocols = normalizeProtocolConversions(
+      backend.protocolConversions,
       backend.protocol,
-      ...normalizeProtocolConversions(backend.protocolConversions, backend.protocol),
-    ];
+    );
+    // A conversion is the consumer-facing protocol for this backend. Advertising
+    // the source as well creates two discovery rows for the same model/node and
+    // lets consumers bypass the selected compatibility layer.
+    const protocols = convertedProtocols.length ? convertedProtocols : [backend.protocol];
     for (const protocol of protocols) {
       const entry = byProtocol.get(protocol) ?? {
         models: [], costMultipliers: {}, supportedTools: {}, versionPrefixes: {}, maxConcurrency: {},

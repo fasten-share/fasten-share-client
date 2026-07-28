@@ -44,6 +44,40 @@ describe('OpenAI Responses compatibility adapter', () => {
     ]));
   });
 
+  it('flattens deferred Codex tool namespaces into Chat Completions functions', () => {
+    const converted = convertResponsesRequest({
+      input: 'inspect',
+      tools: [{
+        type: 'namespace',
+        name: 'workspace',
+        description: 'Workspace operations',
+        tools: [{
+          type: 'function',
+          name: 'read_file',
+          description: 'Read a file',
+          parameters: {
+            type: 'object',
+            properties: { path: { type: 'string' } },
+            required: ['path'],
+            additionalProperties: false,
+          },
+        }],
+      }],
+    }, 'model-a');
+
+    expect(converted.body.tools).toEqual([{
+      type: 'function',
+      function: expect.objectContaining({
+        name: 'read_file',
+        description: 'Workspace operations\n\nRead a file',
+      }),
+    }]);
+    expect(converted.context.tools.get('read_file')).toEqual({
+      type: 'function',
+      name: 'read_file',
+    });
+  });
+
   it.each([
     [{ input: 'hello', store: true }, 'store:true'],
     [{ input: 'hello', previous_response_id: 'resp_1' }, 'previous_response_id'],

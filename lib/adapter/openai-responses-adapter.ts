@@ -164,9 +164,16 @@ function convertTools(value: unknown): {
   if (!Array.isArray(value)) throw new AdapterError('tools must be an array.');
   const mapping = new Map<string, ToolMetadata>();
   const used = new Set<string>();
-  const tools = value.map((raw) => {
+  const tools: LooseObject[] = [];
+  const appendTool = (raw: unknown, namespaceDescription?: string) => {
     const tool = record(raw, 'Invalid tool definition.');
     const type = String(tool.type ?? '');
+    if (type === 'namespace') {
+      if (!Array.isArray(tool.tools)) throw new AdapterError('namespace tools must be an array.');
+      const description = [namespaceDescription, tool.description].filter(Boolean).join('\n\n');
+      for (const child of tool.tools) appendTool(child, description);
+      return;
+    }
     if (['web_search', 'web_search_preview', 'file_search', 'computer_use_preview', 'computer_use',
       'code_interpreter', 'image_generation', 'mcp', 'tool_search', 'programmatic_tool_calling'].includes(type)) {
       unsupported(`Hosted Responses tool '${type}' is not available through a Chat Completions backend.`);
@@ -202,16 +209,18 @@ function convertTools(value: unknown): {
         additionalProperties: true,
       };
     }
-    return {
+    tools.push({
       type: 'function',
       function: {
         name: wrapper,
-        description: String(tool.description ?? `${type} tool ${name}`),
+        description: [namespaceDescription, tool.description ?? `${type} tool ${name}`]
+          .filter(Boolean).join('\n\n'),
         parameters,
         ...(typeof tool.strict === 'boolean' ? { strict: tool.strict } : {}),
       },
-    };
-  });
+    });
+  };
+  for (const raw of value) appendTool(raw);
   return { tools, mapping };
 }
 

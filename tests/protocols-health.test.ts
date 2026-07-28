@@ -78,7 +78,7 @@ describe('producer health', () => {
     }]);
   });
 
-  it('publishes configured converted protocols without changing the upstream offering', () => {
+  it('publishes only the configured consumer-facing converted protocol', () => {
     const result = buildAdvertisedOfferings([
       backend({
         models: ['model-a'],
@@ -87,12 +87,6 @@ describe('producer health', () => {
       }),
     ], new Map([['b1', true]]));
     expect(result).toEqual([
-      expect.objectContaining({
-        protocol: 'openai',
-        models: ['model-a'],
-        supportedTools: { 'model-a': ['opencode'] },
-        versionPrefixes: { 'model-a': '/v1' },
-      }),
       expect.objectContaining({
         protocol: 'openai-response',
         models: ['model-a'],

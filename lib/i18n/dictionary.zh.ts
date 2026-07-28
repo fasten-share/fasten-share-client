@@ -359,6 +359,6 @@ export const zh: Record<keyof typeof en, string> = {
   'producer.healthReasonUnknown': '未知',
   'producer.protocolConversion': '转换成协议',
   'producer.protocolConversionNone': '不转换',
-  'producer.protocolConversionHint': '选择后会额外发布目标协议，并在本机转换请求；消费者工具选项以目标协议为准。openai-response 转换不支持状态型会话和托管工具。',
+  'producer.protocolConversionHint': '选择后仅发布目标协议，并在本机转换请求；消费者工具选项以目标协议为准。openai-response 转换不支持状态型会话和托管工具。',
   'producer.healthHint': '健康检查每 30 秒运行一次。配额/鉴权失败会将你自动移出网络。',
 };

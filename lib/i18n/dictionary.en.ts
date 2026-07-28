@@ -360,7 +360,7 @@ export const en = {
   'producer.healthReasonUnknown': 'unknown',
   'producer.protocolConversion': 'Convert to protocol',
   'producer.protocolConversionNone': 'Do not convert',
-  'producer.protocolConversionHint': 'A selected target is also advertised and requests are converted locally. Consumer tool options follow the target protocol. The openai-response conversion does not support stateful sessions or hosted tools.',
+  'producer.protocolConversionHint': 'Only a selected target is advertised, and requests are converted locally. Consumer tool options follow the target protocol. The openai-response conversion does not support stateful sessions or hosted tools.',
   'producer.healthHint':
     'Health runs every 30s. Quota/auth failures auto-remove you from the network.',
 };
