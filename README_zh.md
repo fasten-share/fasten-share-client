@@ -31,6 +31,8 @@ Fasten Share Client 是 Fasten Share 的开源本地客户端。它提供浏览�
 
 客户端会主动连接 Fasten Share 服务端的生产者 WebSocket，执行健康检查，并将流式请求转发到你配置的后端。
 
+`openai` Chat Completions 后端还可以在生产者表单中启用可选的 `openai-response` 协议转换。启用后客户端会同时发布两种协议，并在生产者出口转换 Responses API 的 HTTP/SSE 流量，使 Codex 可以使用无状态 OpenAI 兼容后端。该转换不支持状态型 Responses 能力（`store: true`、`previous_response_id`、conversation、background）、托管工具和 Responses WebSocket 模式。
+
 ### 密钥保存在本机
 
 共享后端时，上游 API Key / Token 会保存在你的机器上，并在本地转发请求时注入到后端请求中。请只在你确认有权共享的情况下发布后端，并自行确认相关模型服务商条款。
@@ -140,9 +142,10 @@ npm run dev
 3. 添加一个后端。
 4. 填写后端基础 URL，不要包含 API 版本路径。
 5. 选择协议和版本前缀。
-6. 填写用于搜索发现的模型名称。
-7. 设置并发数和积分倍率。
-8. 保存并开始共享。
+6. 如果是 `openai` 后端，可选择启用供 Codex 使用的 Responses 协议转换。
+7. 填写用于搜索发现的模型名称。
+8. 设置并发数和积分倍率。
+9. 保存并开始共享。
 
 本地 Ollama 示例：
 

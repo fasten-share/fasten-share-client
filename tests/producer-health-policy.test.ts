@@ -139,6 +139,117 @@ describe('producer request result tracking', () => {
     await vi.waitFor(() => expect(onStreamFailure).toHaveBeenCalledWith(backend.id, { ok: false, reason: 'NETWORK' }));
   });
 
+  it('converts a Responses request and Chat Completions response at the producer exit', async () => {
+    const chunks: string[] = [];
+    const conn = connection({
+      respondChunk: vi.fn(async (_requestId: string, chunk: Uint8Array) => {
+        chunks.push(Buffer.from(chunk).toString());
+        return true;
+      }),
+    });
+    const convertedBackend = { ...backend, protocolConversions: ['openai-response'] };
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 'chatcmpl-test',
+      choices: [{ finish_reason: 'stop', message: { content: 'done' } }],
+      usage: { prompt_tokens: 2, completion_tokens: 1, total_tokens: 3 },
+    }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const onResult = vi.fn();
+    const requestRouter = new ProducerRequestRouter(conn, () => [convertedBackend], () => true, onResult);
+    requestRouter.handle({
+      type: 'request.start',
+      requestId: 'converted',
+      data: { protocol: 'openai-response', model: 'model-a', method: 'POST', path: '/v1/responses' },
+    });
+    requestRouter.handle({
+      type: 'request.chunk',
+      requestId: 'converted',
+      chunk: Buffer.from(JSON.stringify({ model: 'model-a', input: 'hello' })),
+    });
+    requestRouter.handle({ type: 'request.end', requestId: 'converted' });
+
+    await vi.waitFor(() => expect(onResult).toHaveBeenCalledWith(convertedBackend.id, { ok: true }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.example/v1/chat/completions',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(JSON.parse(chunks.join(''))).toEqual(expect.objectContaining({
+      object: 'response',
+      status: 'completed',
+      output: [expect.objectContaining({ type: 'message' })],
+    }));
+  });
+
+  it('converts Chat Completions SSE into a Responses event stream', async () => {
+    const chunks: string[] = [];
+    const conn = connection({
+      respondChunk: vi.fn(async (_requestId: string, chunk: Uint8Array) => {
+        chunks.push(Buffer.from(chunk).toString());
+        return true;
+      }),
+    });
+    const convertedBackend = { ...backend, protocolConversions: ['openai-response'] };
+    const upstream = [
+      'data: {"id":"chatcmpl-stream","model":"model-a","choices":[{"delta":{"content":"hello"},"finish_reason":null}]}\n\n',
+      'data: {"choices":[{"delta":{"content":" world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":2,"total_tokens":4}}\n\n',
+      'data: [DONE]\n\n',
+    ].join('');
+    const fetchMock = vi.fn().mockResolvedValue(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const onResult = vi.fn();
+    const requestRouter = new ProducerRequestRouter(conn, () => [convertedBackend], () => true, onResult);
+    requestRouter.handle({
+      type: 'request.start',
+      requestId: 'converted-stream',
+      data: { protocol: 'openai-response', model: 'model-a', method: 'POST', path: '/v1/responses' },
+    });
+    requestRouter.handle({
+      type: 'request.chunk',
+      requestId: 'converted-stream',
+      chunk: Buffer.from(JSON.stringify({ input: 'hello', stream: true, store: false })),
+    });
+    requestRouter.handle({ type: 'request.end', requestId: 'converted-stream' });
+
+    await vi.waitFor(() => expect(onResult).toHaveBeenCalledWith(convertedBackend.id, { ok: true }));
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(requestBody).toEqual(expect.objectContaining({
+      stream: true,
+      stream_options: { include_usage: true },
+    }));
+    const output = chunks.join('');
+    expect(output).toContain('event: response.created');
+    expect(output).toContain('event: response.output_text.delta');
+    expect(output).toContain('event: response.completed');
+    expect(output).toContain('"total_tokens":4');
+  });
+
+  it('does not count an invalid converted request as a backend failure', async () => {
+    const convertedBackend = { ...backend, protocolConversions: ['openai-response'] };
+    const onResult = vi.fn();
+    const conn = connection();
+    const requestRouter = new ProducerRequestRouter(conn, () => [convertedBackend], () => true, onResult);
+    requestRouter.handle({
+      type: 'request.start',
+      requestId: 'invalid-converted',
+      data: { protocol: 'openai-response', model: 'model-a', method: 'POST', path: '/v1/responses' },
+    });
+    requestRouter.handle({
+      type: 'request.chunk',
+      requestId: 'invalid-converted',
+      chunk: Buffer.from('{'),
+    });
+    requestRouter.handle({ type: 'request.end', requestId: 'invalid-converted' });
+
+    await vi.waitFor(() => expect(conn.respond).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'response.error',
+      data: expect.objectContaining({ status: 400 }),
+    })));
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
   it('ignores consumer cancellation and downstream transport failures', async () => {
     const onCancelled = vi.fn();
     vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {

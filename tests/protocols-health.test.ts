@@ -77,4 +77,27 @@ describe('producer health', () => {
       maxConcurrency: { shared: 7, a: 7, b: 9 },
     }]);
   });
+
+  it('publishes configured converted protocols without changing the upstream offering', () => {
+    const result = buildAdvertisedOfferings([
+      backend({
+        models: ['model-a'],
+        supportedTools: ['curl', 'opencode'],
+        protocolConversions: ['openai-response'],
+      }),
+    ], new Map([['b1', true]]));
+    expect(result).toEqual([
+      expect.objectContaining({
+        protocol: 'openai',
+        models: ['model-a'],
+        versionPrefixes: { 'model-a': '/v1' },
+      }),
+      expect.objectContaining({
+        protocol: 'openai-response',
+        models: ['model-a'],
+        supportedTools: { 'model-a': ['curl', 'codex', 'opencode'] },
+        versionPrefixes: { 'model-a': '/v1' },
+      }),
+    ]);
+  });
 });

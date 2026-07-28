@@ -4,6 +4,7 @@ import { versionPrefixOrDefault } from '../version-prefix';
 import { adapterFor } from './protocols';
 import type { BackendConfig, Offering } from './types';
 import { normalizeMaxConcurrency } from '../concurrency';
+import { normalizeProtocolConversions } from '../protocol-conversions';
 
 export type HealthResult = { ok: boolean; reason?: string };
 const HEALTH_TIMEOUT_MS = 10_000;
@@ -46,21 +47,31 @@ export function buildAdvertisedOfferings(
   const byProtocol = new Map<BackendConfig['protocol'], Omit<Offering, 'protocol'>>();
   for (const backend of backends) {
     if (backend.enabled === false || advertise.get(backend.id) !== true) continue;
-    const entry = byProtocol.get(backend.protocol) ?? {
-      models: [], costMultipliers: {}, supportedTools: {}, versionPrefixes: {}, maxConcurrency: {},
-    };
-    const multiplier = normalizeCostMultiplier(backend.costMultiplier);
-    const tools = normalizeSupportedTools(backend.supportedTools, backend.protocol);
-    for (const model of backend.models) {
-      if (!entry.models.includes(model)) entry.models.push(model);
-      entry.costMultipliers![model] ??= multiplier;
-      entry.supportedTools![model] = normalizeSupportedTools(
-        [...(entry.supportedTools?.[model] ?? []), ...tools], backend.protocol,
-      );
-      entry.versionPrefixes![model] ??= versionPrefixOrDefault(backend.versionPrefix, backend.protocol);
-      entry.maxConcurrency![model] ??= normalizeMaxConcurrency(backend.maxConcurrency);
+    const protocols = [
+      backend.protocol,
+      ...normalizeProtocolConversions(backend.protocolConversions, backend.protocol),
+    ];
+    for (const protocol of protocols) {
+      const entry = byProtocol.get(protocol) ?? {
+        models: [], costMultipliers: {}, supportedTools: {}, versionPrefixes: {}, maxConcurrency: {},
+      };
+      const multiplier = normalizeCostMultiplier(backend.costMultiplier);
+      const tools = protocol === backend.protocol
+        ? normalizeSupportedTools(backend.supportedTools, protocol)
+        : normalizeSupportedTools([...(backend.supportedTools ?? []), 'codex'], protocol);
+      for (const model of backend.models) {
+        if (!entry.models.includes(model)) entry.models.push(model);
+        entry.costMultipliers![model] ??= multiplier;
+        entry.supportedTools![model] = normalizeSupportedTools(
+          [...(entry.supportedTools?.[model] ?? []), ...tools], protocol,
+        );
+        entry.versionPrefixes![model] ??= protocol === backend.protocol
+          ? versionPrefixOrDefault(backend.versionPrefix, backend.protocol)
+          : versionPrefixOrDefault(undefined, protocol);
+        entry.maxConcurrency![model] ??= normalizeMaxConcurrency(backend.maxConcurrency);
+      }
+      byProtocol.set(protocol, entry);
     }
-    byProtocol.set(backend.protocol, entry);
   }
   return [...byProtocol].map(([protocol, offering]) => ({ protocol, ...offering }));
 }

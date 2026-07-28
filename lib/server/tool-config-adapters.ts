@@ -36,7 +36,15 @@ function updateClaude(raw: string, target: ToolConfigTarget, token: string): str
 function updateCodex(raw: string, target: ToolConfigTarget, token: string): string {
   const root = raw.trim() ? TOML.parse(raw) as Record<string, unknown> : {}; root.model = target.model; root.model_provider = 'fasten-share'; root.forced_login_method = 'api';
   const providers = object(root.model_providers); const provider = object(providers['fasten-share']); delete provider.env_key; delete provider.experimental_bearer_token; delete provider.requires_openai_auth; delete provider.auth;
-  providers['fasten-share'] = { ...provider, name: 'Fasten Share', base_url: target.baseUrl, wire_api: 'responses', http_headers: { Authorization: `Bearer ${token}` } }; root.model_providers = providers;
+  providers['fasten-share'] = {
+    ...provider,
+    name: 'Fasten Share',
+    base_url: target.baseUrl,
+    wire_api: 'responses',
+    supports_websockets: false,
+    http_headers: { Authorization: `Bearer ${token}` },
+  };
+  root.model_providers = providers;
   return TOML.stringify(root as Parameters<typeof TOML.stringify>[0]);
 }
 function updateOpenCode(raw: string, target: ToolConfigTarget, token: string): string {

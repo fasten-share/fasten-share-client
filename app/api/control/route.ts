@@ -9,6 +9,7 @@ import { normalizeVersionPrefix } from '@/lib/version-prefix';
 import type { EncryptedApiKey } from '@/lib/api-key-crypto-types';
 import { ENCRYPTION_SESSION_EXPIRED, INVALID_ENCRYPTED_API_KEY } from '@/lib/api-key-crypto-types';
 import { decryptApiKey, encryptApiKey } from '@/lib/server/api-key-crypto';
+import { normalizeProtocolConversions } from '@/lib/protocol-conversions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,11 @@ function securedStatus(runtime: NonNullable<ReturnType<ReturnType<typeof getCore
 function normalizeBackend(backend: BackendConfig): BackendConfig | undefined {
   const versionPrefix = normalizeVersionPrefix(backend.versionPrefix);
   if (!versionPrefix) return undefined;
-  return { ...backend, versionPrefix };
+  return {
+    ...backend,
+    versionPrefix,
+    protocolConversions: normalizeProtocolConversions(backend.protocolConversions, backend.protocol),
+  };
 }
 
 function duplicateOffering(backends: BackendConfig[]): string | undefined {
@@ -66,9 +71,11 @@ function duplicateOffering(backends: BackendConfig[]): string | undefined {
     const protocol = backend.protocol.trim();
     for (const rawModel of backend.models) {
       const model = rawModel.trim();
-      const key = `${protocol}\0${model}`;
-      if (seen.has(key)) return `${protocol}/${model}`;
-      seen.add(key);
+      for (const exposedProtocol of [protocol, ...normalizeProtocolConversions(backend.protocolConversions, protocol)]) {
+        const key = `${exposedProtocol}\0${model}`;
+        if (seen.has(key)) return `${exposedProtocol}/${model}`;
+        seen.add(key);
+      }
     }
   }
   return undefined;

@@ -49,6 +49,7 @@ export function BackendFields({
               onChange({
                 protocol,
                 supportedTools: normalizeSupportedTools(value.supportedTools, protocol),
+                protocolConversions: protocol === 'openai' ? value.protocolConversions : [],
                 versionPrefix: value.versionPrefix === previousDefault
                   ? defaultVersionPrefix(protocol)
                   : value.versionPrefix,
@@ -77,6 +78,23 @@ export function BackendFields({
         placeholder={defaultVersionPrefix(value.protocol)}
       />
       <div className="hint">{t('producer.versionPrefixHint')}</div>
+
+      {value.protocol === 'openai' && (
+        <label className={styles.toolOption}>
+          <input
+            type="checkbox"
+            disabled={disabled}
+            checked={value.protocolConversions.includes('openai-response')}
+            onChange={(event) => onChange({
+              protocolConversions: event.target.checked ? ['openai-response'] : [],
+            })}
+          />
+          {t('producer.responsesConversion')}
+        </label>
+      )}
+      {value.protocol === 'openai' && (
+        <div className="hint">{t('producer.responsesConversionHint')}</div>
+      )}
 
       {value.protocol === 'azure-openai' && (
         <div>

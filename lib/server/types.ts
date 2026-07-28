@@ -42,6 +42,8 @@ export interface BackendConfig {
   enabled?: boolean;
   supportedTools?: ToolId[];
   versionPrefix?: string;
+  /** Additional consumer-facing protocols synthesized from this upstream. */
+  protocolConversions?: Protocol[];
 }
 
 export interface BackendStatus {

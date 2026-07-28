@@ -99,24 +99,26 @@ export function ProducerForm({
   }
 
   function hasDuplicateOffering(c: Card, candidates = cards, includeInactive = false): boolean {
-    const protocol = c.protocol.trim();
+    const protocols = [c.protocol.trim(), ...c.protocolConversions];
     const otherOfferings = new Set(
       candidates
         .filter(
           (other) =>
             other.id !== c.id &&
-            other.protocol.trim() === protocol &&
             (includeInactive || status.producer.backends.some((backend) => backend.id === other.id && backend.enabled)),
         )
-        .flatMap((other) => parseModels(other.modelsText)),
+        .flatMap((other) => [other.protocol.trim(), ...other.protocolConversions]
+          .flatMap((protocol) => parseModels(other.modelsText).map((model) => `${protocol}\0${model}`))),
     );
-    const duplicate = parseModels(c.modelsText).find((model, index, models) =>
-      otherOfferings.has(model) || models.indexOf(model) !== index,
-    );
+    const models = parseModels(c.modelsText);
+    const duplicate = protocols.flatMap((protocol) => models.map((model) => ({ protocol, model })))
+      .find(({ protocol, model }, index, offerings) =>
+        otherOfferings.has(`${protocol}\0${model}`)
+        || offerings.findIndex((item) => item.protocol === protocol && item.model === model) !== index);
     if (!duplicate) return false;
     setMsgById((p) => ({
       ...p,
-      [c.id]: t('producer.duplicateProtocolModel', { protocol, model: duplicate }),
+      [c.id]: t('producer.duplicateProtocolModel', duplicate),
     }));
     return true;
   }
@@ -233,12 +235,12 @@ export function ProducerForm({
       let duplicate: { card: Card; offering: string } | undefined;
       const enabledIds = new Set<string>();
       for (const card of savedCards) {
-        const protocol = card.protocol.trim();
         const models = parseModels(card.modelsText);
-        const keys = models.map((model) => `${protocol}\0${model}`);
+        const protocols = [card.protocol.trim(), ...card.protocolConversions];
+        const keys = protocols.flatMap((protocol) => models.map((model) => `${protocol}\0${model}`));
         const conflictIndex = keys.findIndex((key, index) => offerings.has(key) || keys.indexOf(key) !== index);
         if (conflictIndex >= 0) {
-          duplicate ??= { card, offering: `${protocol}/${models[conflictIndex]}` };
+          duplicate ??= { card, offering: keys[conflictIndex].replace('\0', '/') };
           continue;
         }
         keys.forEach((key) => offerings.add(key));

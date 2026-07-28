@@ -31,6 +31,8 @@ Use the client as a producer to publish a backend such as:
 
 The client opens an outbound producer WebSocket to the Fasten Share service, runs health checks, and forwards streamed requests to your configured backend.
 
+An `openai` Chat Completions backend can also enable the optional `openai-response` protocol conversion in the producer form. The client then publishes both protocols and converts Responses API HTTP/SSE traffic at the producer exit, so Codex can use a stateless OpenAI-compatible backend. Stateful Responses features (`store: true`, `previous_response_id`, conversations, and background mode), hosted tools, and Responses WebSocket mode are not supported by this conversion.
+
 ### Keep credentials local
 
 When you share a backend, its upstream API key/token is stored on your machine and injected locally when forwarding requests to that backend. Do not share a backend unless you have the right to do so under the relevant provider terms.
@@ -140,9 +142,10 @@ The development server runs the same local UI port (`8086`) but is not the recom
 3. Add a backend.
 4. Enter the backend base URL without the API version path.
 5. Select the protocol and version prefix.
-6. Enter exposed model names for discovery.
-7. Set concurrency and credit multiplier.
-8. Save and start sharing.
+6. For an `openai` backend, optionally enable Responses protocol conversion for Codex.
+7. Enter exposed model names for discovery.
+8. Set concurrency and credit multiplier.
+9. Save and start sharing.
 
 Example for local Ollama:
 

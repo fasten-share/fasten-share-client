@@ -358,6 +358,8 @@ export const en = {
   'producer.healthOk': 'Last health check: OK',
   'producer.healthFailed': 'Last health check: FAILED ({reason})',
   'producer.healthReasonUnknown': 'unknown',
+  'producer.responsesConversion': 'Support Codex through Responses conversion',
+  'producer.responsesConversionHint': 'Also advertises openai-response and converts requests locally to Chat Completions. Stateful sessions and hosted tools are unsupported.',
   'producer.healthHint':
     'Health runs every 30s. Quota/auth failures auto-remove you from the network.',
 };

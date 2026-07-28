@@ -1,6 +1,7 @@
 import type { BackendInput, BackendView } from '@/lib/control-client';
 import { normalizeMaxConcurrency } from '@/lib/concurrency';
 import { normalizeCostMultiplier } from '@/lib/cost';
+import { normalizeProtocolConversions } from '@/lib/protocol-conversions';
 import { normalizeSupportedTools, type ToolId } from '@/lib/tool-support';
 import {
   defaultVersionPrefix,
@@ -22,6 +23,7 @@ export interface Draft {
   apiKey: string;
   supportedTools: ToolId[];
   versionPrefix: string;
+  protocolConversions: string[];
 }
 
 export interface Card extends Draft {
@@ -39,6 +41,7 @@ export const emptyDraft = (): Draft => ({
   apiKey: '',
   supportedTools: ['curl'],
   versionPrefix: defaultVersionPrefix('openai'),
+  protocolConversions: [],
 });
 
 export function toCard(backend: BackendView): Card {
@@ -54,6 +57,7 @@ export function toCard(backend: BackendView): Card {
     enabled: backend.enabled !== false,
     supportedTools: normalizeSupportedTools(backend.supportedTools, backend.protocol),
     versionPrefix: versionPrefixOrDefault(backend.versionPrefix, backend.protocol),
+    protocolConversions: normalizeProtocolConversions(backend.protocolConversions, backend.protocol),
   };
 }
 
@@ -74,5 +78,8 @@ export function toInput(card: Card): BackendInput {
     enabled: card.enabled,
     supportedTools: normalizeSupportedTools(card.supportedTools, card.protocol),
     versionPrefix: normalizeVersionPrefix(card.versionPrefix) ?? card.versionPrefix.trim(),
+    protocolConversions: card.protocol === 'openai'
+      ? card.protocolConversions.filter((protocol) => protocol === 'openai-response')
+      : [],
   };
 }

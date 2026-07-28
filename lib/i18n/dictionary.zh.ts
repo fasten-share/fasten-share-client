@@ -357,5 +357,7 @@ export const zh: Record<keyof typeof en, string> = {
   'producer.healthOk': '上次健康检查：正常',
   'producer.healthFailed': '上次健康检查：失败（{reason}）',
   'producer.healthReasonUnknown': '未知',
+  'producer.responsesConversion': '通过 Responses 协议转换支持 Codex',
+  'producer.responsesConversionHint': '额外发布 openai-response 能力；请求会在本机转换为 Chat Completions。状态型会话和托管工具不受支持。',
   'producer.healthHint': '健康检查每 30 秒运行一次。配额/鉴权失败会将你自动移出网络。',
 };

@@ -18,6 +18,7 @@ export interface BackendView {
   apiVersion?: string; // azure-openai only
   supportedTools?: ToolId[];
   versionPrefix?: string;
+  protocolConversions?: string[];
   enabled?: boolean;
 }
 
@@ -61,6 +62,7 @@ export interface BackendInput {
   enabled?: boolean;
   supportedTools?: ToolId[];
   versionPrefix?: string;
+  protocolConversions?: string[];
 }
 
 type Action =
