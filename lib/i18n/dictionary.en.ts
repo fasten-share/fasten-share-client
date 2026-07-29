@@ -87,6 +87,7 @@ export const en = {
   'recharge.creating': 'Creating…',
   'recharge.createFailed': 'Failed to create payment order.',
   'recharge.checkFailed': 'Failed to check payment status.',
+  'recharge.success': 'Payment successful.',
   'recharge.qrFailed': 'Failed to generate QR code.',
   'recharge.qrAlt': 'WeChat Pay QR code',
   'recharge.scanHint': 'Open WeChat Scan and pay. The balance refreshes automatically after payment succeeds.',

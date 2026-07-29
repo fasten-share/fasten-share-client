@@ -89,6 +89,7 @@ export const zh: Record<keyof typeof en, string> = {
   'recharge.creating': '生成中…',
   'recharge.createFailed': '创建支付订单失败。',
   'recharge.checkFailed': '查询支付状态失败。',
+  'recharge.success': '支付成功。',
   'recharge.qrFailed': '生成二维码失败。',
   'recharge.qrAlt': '微信支付二维码',
   'recharge.scanHint': '打开微信扫一扫完成支付。支付成功后会自动刷新余额。',

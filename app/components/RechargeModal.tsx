@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import QRCode from 'qrcode';
 import {
@@ -36,6 +36,20 @@ export function RechargeModal({
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState('');
   const [qrImage, setQrImage] = useState<{ codeUrl: string; src: string } | null>(null);
+  const paidHandledRef = useRef(false);
+
+  const handlePaid = useCallback(async (): Promise<void> => {
+    if (paidHandledRef.current) return;
+    paidHandledRef.current = true;
+    onClose();
+    window.alert(t('recharge.success'));
+    try {
+      const me = await loadMe();
+      if (me) onPaid(me);
+    } catch {
+      // Payment is confirmed; keep the previous balance if refreshing it fails temporarily.
+    }
+  }, [onClose, onPaid, t]);
 
   useEffect(() => {
     let alive = true;
@@ -64,8 +78,7 @@ export function RechargeModal({
           if (!alive) return;
           setOrder(next);
           if (next.status === 'paid') {
-            const me = await loadMe();
-            if (me && alive) onPaid(me);
+            await handlePaid();
           }
         })
         .catch(() => {
@@ -76,7 +89,7 @@ export function RechargeModal({
       alive = false;
       window.clearInterval(timer);
     };
-  }, [pendingOrderNo, onPaid]);
+  }, [handlePaid, pendingOrderNo]);
 
   async function startRecharge(nextAmount = amount): Promise<void> {
     setLoading(true);
@@ -99,8 +112,7 @@ export function RechargeModal({
       const next = await syncRechargeOrder(order.outTradeNo);
       setOrder(next);
       if (next.status === 'paid') {
-        const me = await loadMe();
-        if (me) onPaid(me);
+        await handlePaid();
       }
     } catch (err) {
       setError((err as Error).message || t('recharge.checkFailed'));
