@@ -13,6 +13,12 @@ export default defineConfig({
       reporter: ['text', 'html'],
       include: ['lib/**/*.ts', 'app/components/*-model.ts', 'app/components/consumer-utils.ts'],
       exclude: ['lib/**/*.d.ts', 'lib/**/types.ts', 'lib/i18n/**'],
+      thresholds: {
+        lines: 75,
+        statements: 70,
+        functions: 70,
+        branches: 60,
+      },
     },
   },
 });
