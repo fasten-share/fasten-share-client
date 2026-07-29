@@ -1,4 +1,12 @@
-import type { AuthError, DeviceLimitResult, UserDto, WechatLoginResult, WechatLoginSession } from './auth-types';
+import type {
+  AuthError,
+  DeviceLimitResult,
+  UserDto,
+  WechatLoginPendingResult,
+  WechatLoginResult,
+  WechatLoginSession,
+  WechatRegistrationResult,
+} from './auth-types';
 import { clearApiKeyEncryptionKey, setApiKeyEncryptionKey } from './api-key-crypto';
 
 const TOKEN_STORAGE_KEY = 'fs.accessToken';
@@ -186,8 +194,6 @@ export async function loadMe(): Promise<UserDto | null> {
 }
 
 export async function createWechatLoginSession(body: {
-  agreementAccepted: true;
-  inviteCode?: string;
   next?: string;
   lang: 'cn' | 'en';
 }): Promise<WechatLoginSession> {
@@ -200,12 +206,17 @@ export async function createWechatLoginSession(body: {
   return res.json() as Promise<WechatLoginSession>;
 }
 
-export async function exchangeWechatLogin(sessionId: string, clientToken: string): Promise<WechatLoginResult | DeviceLimitResult | null> {
+export async function exchangeWechatLogin(
+  sessionId: string,
+  clientToken: string,
+  agreementAccepted: boolean,
+): Promise<WechatLoginResult | DeviceLimitResult | WechatLoginPendingResult> {
   const res = await fetch(`/api/auth/wechat/sessions/${encodeURIComponent(sessionId)}/exchange`, {
     method: 'POST',
-    headers: { 'x-wechat-login-token': clientToken },
+    headers: { 'content-type': 'application/json', 'x-wechat-login-token': clientToken },
+    body: JSON.stringify({ agreementAccepted }),
   });
-  if (res.status === 202) return null;
+  if (res.status === 202) return res.json() as Promise<WechatLoginPendingResult>;
   if (res.status === 409) {
     const limited = await res.json() as DeviceLimitResult;
     if (limited.code === 'DEVICE_LIMIT_EXCEEDED') return limited;
@@ -236,6 +247,20 @@ export async function replaceDevice(replacementToken: string, targetDeviceId: st
   setAccessToken(data.accessToken);
   if (data.encryptionKey) setApiKeyEncryptionKey(data.encryptionKey);
   return data;
+}
+
+export async function completeWechatRegistration(
+  sessionId: string,
+  clientToken: string,
+  body: { agreementAccepted: true; inviteCode?: string },
+): Promise<WechatRegistrationResult> {
+  const res = await fetch(`/api/auth/wechat/sessions/${encodeURIComponent(sessionId)}/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-wechat-login-token': clientToken },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await toAuthError(res);
+  return res.json() as Promise<WechatRegistrationResult>;
 }
 
 export async function cancelWechatLogin(sessionId: string, clientToken: string): Promise<void> {

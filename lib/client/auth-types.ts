@@ -109,7 +109,6 @@ export interface WechatLoginSession {
   sessionId: string;
   clientToken: string;
   expiresAt: string;
-  inviteCode: string | null;
   next: string;
   authorizeUrl: string;
   wxLogin: {
@@ -122,6 +121,15 @@ export interface WechatLoginSession {
     colorScheme: 'auto';
     lang: 'cn' | 'en';
   };
+}
+
+export interface WechatLoginPendingResult {
+  status: 'pending' | 'processing' | 'agreement_required' | 'registration_required' | 'registering';
+  expiresAt?: string;
+}
+
+export interface WechatRegistrationResult {
+  status: 'registering' | 'authorized';
 }
 
 export interface WechatLoginResult extends AuthResponse {

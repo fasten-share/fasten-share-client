@@ -4,6 +4,7 @@ import {
   authHeaders,
   cancelWechatLogin,
   clearAccessToken,
+  completeWechatRegistration,
   consumeAuthNotice,
   createWechatLoginSession,
   exchangeWechatLogin,
@@ -92,7 +93,7 @@ describe('authentication session', () => {
     const session = { sessionId: 's1' };
     const fetchMock = vi.fn().mockResolvedValue(Response.json(session));
     vi.stubGlobal('fetch', fetchMock);
-    const body = { agreementAccepted: true as const, inviteCode: 'i', next: '/', lang: 'cn' as const };
+    const body = { next: '/', lang: 'cn' as const };
     await expect(createWechatLoginSession(body)).resolves.toEqual(session);
     expect(fetchMock).toHaveBeenCalledWith('/api/auth/wechat/sessions', expect.objectContaining({ body: JSON.stringify(body) }));
   });
@@ -100,24 +101,35 @@ describe('authentication session', () => {
   it('handles pending, device-limit, consumed, and successful exchanges', async () => {
     const result = { accessToken: 'access', encryptionKey: 'encrypt', user: { id: 'u' } };
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(null, { status: 202 }))
+      .mockResolvedValueOnce(Response.json({ status: 'registration_required', expiresAt: '2030-01-01' }, { status: 202 }))
       .mockResolvedValueOnce(Response.json({ code: 'DEVICE_LIMIT_EXCEEDED', devices: [] }, { status: 409 }))
       .mockResolvedValueOnce(Response.json({ code: 'ALREADY_USED' }, { status: 409 }))
       .mockResolvedValueOnce(Response.json(result));
     vi.stubGlobal('fetch', fetchMock);
-    await expect(exchangeWechatLogin('s/id', 'client')).resolves.toBeNull();
-    await expect(exchangeWechatLogin('s', 'client')).resolves.toMatchObject({ code: 'DEVICE_LIMIT_EXCEEDED' });
-    await expect(exchangeWechatLogin('s', 'client')).rejects.toMatchObject({ status: 409 });
-    await expect(exchangeWechatLogin('s', 'client')).resolves.toEqual(result);
+    await expect(exchangeWechatLogin('s/id', 'client', false)).resolves.toMatchObject({ status: 'registration_required' });
+    await expect(exchangeWechatLogin('s', 'client', true)).resolves.toMatchObject({ code: 'DEVICE_LIMIT_EXCEEDED' });
+    await expect(exchangeWechatLogin('s', 'client', true)).rejects.toMatchObject({ status: 409 });
+    await expect(exchangeWechatLogin('s', 'client', true)).resolves.toEqual(result);
     expect(getAccessToken()).toBe('access');
     expect(getApiKeyEncryptionKey()).toBe('encrypt');
     expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/wechat/sessions/s%2Fid/exchange');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ body: JSON.stringify({ agreementAccepted: false }) }));
   });
 
   it('rejects a successful login response without an encryption key', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ accessToken: 'access' })));
-    await expect(exchangeWechatLogin('s', 'c')).rejects.toMatchObject({ status: 502 });
+    await expect(exchangeWechatLogin('s', 'c', true)).rejects.toMatchObject({ status: 502 });
     expect(getAccessToken()).toBeNull();
+  });
+
+  it('completes new-user registration with an optional invite code', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ status: 'authorized' }, { status: 202 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const body = { agreementAccepted: true as const, inviteCode: 'INVITE' };
+    await expect(completeWechatRegistration('s/id', 'client', body)).resolves.toEqual({ status: 'authorized' });
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/wechat/sessions/s%2Fid/register', expect.objectContaining({
+      body: JSON.stringify(body),
+    }));
   });
 
   it('replaces devices and tolerates an absent optional encryption key', async () => {

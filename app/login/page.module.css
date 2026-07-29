@@ -35,6 +35,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  margin-top: 18px;
 }
 
 .form label {
@@ -144,6 +145,23 @@
   overflow: hidden;
   border-radius: 12px;
   background: #000;
+}
+.qrPlaceholder {
+  width: 240px;
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  padding: 24px;
+  text-align: center;
+}
+.agreementPrompt {
+  margin: 0;
+  color: var(--accent-2);
+  font-size: 13px;
+  text-align: center;
 }
 .qrContainer iframe {
   display: block;

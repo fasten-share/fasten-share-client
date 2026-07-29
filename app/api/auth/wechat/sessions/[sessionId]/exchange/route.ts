@@ -12,10 +12,12 @@ export async function POST(req: Request, ctx: Context): Promise<Response> {
   const upstream = await proxyServer(`/api/v1/auth/wechat/sessions/${encodeURIComponent(sessionId)}/exchange`, {
     method: 'POST',
     headers: {
+      'content-type': 'application/json',
       'x-wechat-login-token': req.headers.get('x-wechat-login-token') || '',
       'x-device-id': config.all().deviceId,
       'x-device-name': encodeURIComponent(config.all().deviceName),
     },
+    body: await req.text(),
   });
   if (upstream.status === 409) return upstream;
   if (!upstream.ok || upstream.status === 202) return upstream;
