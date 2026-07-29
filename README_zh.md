@@ -31,7 +31,7 @@ Fasten Share Client 是 Fasten Share 的开源本地客户端。它提供浏览�
 
 客户端会主动连接 Fasten Share 服务端的生产者 WebSocket，执行健康检查，并将流式请求转发到你配置的后端。
 
-`openai` Chat Completions 后端还可以在生产者表单中选择转换为 `openai-response`，也可以选择不转换。选择目标后客户端会同时发布两种协议，并在生产者出口转换 Responses API 的 HTTP/SSE 流量，使 Codex 可以使用无状态 OpenAI 兼容后端。消费者工具选项会以目标协议为准，转换后的 offering 只发布生产者实际勾选且与目标协议兼容的工具。该转换不支持状态型 Responses 能力（`store: true`、`previous_response_id`、conversation、background）、托管工具和 Responses WebSocket 模式。
+`openai` Chat Completions 后端还可以在生产者表单中选择转换为 `openai-response`，也可以选择不转换。选择目标后客户端会同时发布两种协议，并在生产者出口转换 Responses API 的 HTTP/SSE 流量，使 Codex 可以使用无状态 OpenAI 兼容后端。消费者工具选项会以目标协议为准，转换后的 offering 只发布生产者实际勾选且与目标协议兼容的工具。该转换不支持状态型 Responses 能力（`store: true`、`previous_response_id`、conversation、background）、托管工具和 Responses WebSocket 模式。可选的 `web_search` 声明会被省略，使 Codex 请求仍可使用其余能力；若明确要求使用联网搜索，转换器仍会返回不支持错误。
 
 ### 密钥保存在本机
 

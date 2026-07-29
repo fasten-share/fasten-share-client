@@ -81,10 +81,39 @@ describe('OpenAI Responses compatibility adapter', () => {
   it.each([
     [{ input: 'hello', store: true }, 'store:true'],
     [{ input: 'hello', previous_response_id: 'resp_1' }, 'previous_response_id'],
-    [{ input: 'hello', tools: [{ type: 'web_search' }] }, 'Hosted Responses tool'],
+    [{ input: 'hello', tools: [{ type: 'file_search' }] }, 'Hosted Responses tool'],
   ])('rejects unsupported state or hosted capabilities', (request, message) => {
     expect(() => convertResponsesRequest(request, 'model')).toThrowError(
       expect.objectContaining<Partial<AdapterError>>({ code: 'RESPONSES_ADAPTER_UNSUPPORTED_FEATURE', message: expect.stringContaining(message) }),
+    );
+  });
+
+  it('omits optional hosted web search from Chat Completions requests', () => {
+    const converted = convertResponsesRequest({
+      input: 'hello',
+      tools: [{ type: 'web_search' }, { type: 'web_search_preview' }],
+      tool_choice: 'auto',
+      parallel_tool_calls: true,
+    }, 'model');
+
+    expect(converted.body).not.toHaveProperty('tools');
+    expect(converted.body).not.toHaveProperty('tool_choice');
+    expect(converted.body).not.toHaveProperty('parallel_tool_calls');
+  });
+
+  it.each([
+    [{ type: 'web_search' }, 'cannot be selected'],
+    ['required', 'cannot be satisfied'],
+  ])('rejects a required hosted web search tool choice', (toolChoice, message) => {
+    expect(() => convertResponsesRequest({
+      input: 'hello',
+      tools: [{ type: 'web_search' }],
+      tool_choice: toolChoice,
+    }, 'model')).toThrowError(
+      expect.objectContaining<Partial<AdapterError>>({
+        code: 'RESPONSES_ADAPTER_UNSUPPORTED_FEATURE',
+        message: expect.stringContaining(message),
+      }),
     );
   });
 

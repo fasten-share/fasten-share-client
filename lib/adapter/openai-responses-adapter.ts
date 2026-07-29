@@ -7,6 +7,19 @@ export type JsonRecord = Record<string, unknown>;
 type LooseObject = Record<string, any>;
 type ToolType = 'function' | 'custom' | 'local_shell';
 
+const OPTIONAL_WEB_SEARCH_TOOLS = new Set(['web_search', 'web_search_preview']);
+const HOSTED_RESPONSES_TOOLS = new Set([
+  ...OPTIONAL_WEB_SEARCH_TOOLS,
+  'file_search',
+  'computer_use_preview',
+  'computer_use',
+  'code_interpreter',
+  'image_generation',
+  'mcp',
+  'tool_search',
+  'programmatic_tool_calling',
+]);
+
 interface ToolMetadata {
   type: ToolType;
   name: string;
@@ -159,10 +172,18 @@ function convertInput(input: unknown, toolsByWrapper: Map<string, ToolMetadata>)
 function convertTools(value: unknown): {
   tools?: LooseObject[];
   mapping: Map<string, ToolMetadata>;
+  omittedWebSearch: Set<string>;
 } {
-  if (value == null) return { tools: undefined, mapping: new Map<string, ToolMetadata>() };
+  if (value == null) {
+    return {
+      tools: undefined,
+      mapping: new Map<string, ToolMetadata>(),
+      omittedWebSearch: new Set<string>(),
+    };
+  }
   if (!Array.isArray(value)) throw new AdapterError('tools must be an array.');
   const mapping = new Map<string, ToolMetadata>();
+  const omittedWebSearch = new Set<string>();
   const used = new Set<string>();
   const tools: LooseObject[] = [];
   const appendTool = (raw: unknown, namespaceDescription?: string) => {
@@ -174,8 +195,13 @@ function convertTools(value: unknown): {
       for (const child of tool.tools) appendTool(child, description);
       return;
     }
-    if (['web_search', 'web_search_preview', 'file_search', 'computer_use_preview', 'computer_use',
-      'code_interpreter', 'image_generation', 'mcp', 'tool_search', 'programmatic_tool_calling'].includes(type)) {
+    // Codex can advertise web search as an optional hosted tool. A Chat
+    // Completions backend cannot execute it, so degrade to the remaining tools.
+    if (OPTIONAL_WEB_SEARCH_TOOLS.has(type)) {
+      omittedWebSearch.add(type);
+      return;
+    }
+    if (HOSTED_RESPONSES_TOOLS.has(type)) {
       unsupported(`Hosted Responses tool '${type}' is not available through a Chat Completions backend.`);
     }
     if (!['function', 'custom', 'local_shell'].includes(type)) {
@@ -221,17 +247,29 @@ function convertTools(value: unknown): {
     });
   };
   for (const raw of value) appendTool(raw);
-  return { tools, mapping };
+  return { tools, mapping, omittedWebSearch };
 }
 
 function mapToolChoice(
   value: unknown,
   mapping: Map<string, ToolMetadata>,
+  omittedWebSearch: Set<string>,
 ): string | LooseObject | undefined {
   if (value == null) return undefined;
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string') {
+    if (mapping.size === 0) {
+      if (value === 'required' && omittedWebSearch.size > 0) {
+        unsupported("tool_choice 'required' cannot be satisfied because web search is not available through a Chat Completions backend.");
+      }
+      if (value === 'auto' || value === 'none') return undefined;
+    }
+    return value;
+  }
   const choice = record(value, 'Invalid tool_choice.');
   const type = String(choice.type ?? '');
+  if (OPTIONAL_WEB_SEARCH_TOOLS.has(type)) {
+    unsupported(`Hosted Responses tool '${type}' cannot be selected through a Chat Completions backend.`);
+  }
   if (type === 'function' || type === 'custom') {
     const name = String(choice.name ?? '');
     const found = [...mapping].find(([, metadata]) => metadata.type === type && metadata.name === name);
@@ -283,14 +321,16 @@ export function convertResponsesRequest(
     stream: input.stream === true,
   };
   if (convertedTools.tools?.length) body.tools = convertedTools.tools;
-  const toolChoice = mapToolChoice(input.tool_choice, convertedTools.mapping);
+  const toolChoice = mapToolChoice(input.tool_choice, convertedTools.mapping, convertedTools.omittedWebSearch);
   if (toolChoice != null) body.tool_choice = toolChoice;
   const responseFormat = mapText(input.text);
   if (responseFormat) body.response_format = responseFormat;
   const direct = ['temperature', 'top_p', 'service_tier', 'prompt_cache_key', 'safety_identifier',
     'user', 'seed', 'frequency_penalty', 'presence_penalty', 'stop', 'logprobs', 'top_logprobs'];
   for (const field of direct) if (input[field] != null) body[field] = input[field];
-  if (input.parallel_tool_calls != null) body.parallel_tool_calls = input.parallel_tool_calls;
+  if (input.parallel_tool_calls != null && convertedTools.tools?.length) {
+    body.parallel_tool_calls = input.parallel_tool_calls;
+  }
   if (input.max_output_tokens != null) body.max_completion_tokens = input.max_output_tokens;
   if (input.reasoning && typeof input.reasoning === 'object' && input.reasoning.effort != null) {
     body.reasoning_effort = input.reasoning.effort;
