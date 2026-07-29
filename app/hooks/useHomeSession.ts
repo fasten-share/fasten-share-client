@@ -124,13 +124,12 @@ export function useHomeSession() {
 
   useEffect(() => {
     const forced = () => {
-      forceDeviceLogout();
-      window.alert('该设备因账号设备节点超过数量上限，已退出登录。');
+      forceDeviceLogout(t('auth.forcedLogout'));
       router.replace('/login');
     };
     window.addEventListener('fs:forced-logout', forced);
     return () => window.removeEventListener('fs:forced-logout', forced);
-  }, [router]);
+  }, [router, t]);
 
   const onLogout = useCallback(async () => {
     await logout();

@@ -12,6 +12,7 @@ import {
 } from '@/lib/client/auth';
 import { useI18n } from '@/lib/i18n/context';
 import styles from './RechargeModal.module.css';
+import { useToast } from './ToastProvider';
 
 const AMOUNTS = [1, 5, 10, 20, 50, 100] as const;
 const CREDITS_PER_YUAN = 100_000;
@@ -30,6 +31,7 @@ export function RechargeModal({
   onPaid: (user: UserDto) => void;
 }) {
   const { t } = useI18n();
+  const { showToast } = useToast();
   const [amount, setAmount] = useState<number>(1);
   const [order, setOrder] = useState<RechargeOrder | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,14 +44,14 @@ export function RechargeModal({
     if (paidHandledRef.current) return;
     paidHandledRef.current = true;
     onClose();
-    window.alert(t('recharge.success'));
+    showToast(t('recharge.success'), { tone: 'success' });
     try {
       const me = await loadMe();
       if (me) onPaid(me);
     } catch {
       // Payment is confirmed; keep the previous balance if refreshing it fails temporarily.
     }
-  }, [onClose, onPaid, t]);
+  }, [onClose, onPaid, showToast, t]);
 
   useEffect(() => {
     let alive = true;

@@ -16,6 +16,7 @@ import {
 } from '@/lib/client/withdrawal-amount';
 import { useI18n } from '@/lib/i18n/context';
 import type { MessageKey } from '@/lib/i18n/dictionary';
+import { useConfirmDialog } from './ConfirmDialogProvider';
 import styles from './WithdrawalModal.module.css';
 
 const MIN_CREDITS = Number(MIN_WITHDRAWAL_CREDITS);
@@ -39,6 +40,7 @@ const VALIDATION_KEYS: Record<WithdrawalValidationError, MessageKey> = {
 
 export function WithdrawalModal({ user, onClose, onChanged }: { user: UserDto; onClose: () => void; onChanged: () => Promise<void> }) {
   const { t } = useI18n();
+  const { confirmAction } = useConfirmDialog();
   const [amount, setAmount] = useState(String(MIN_CREDITS));
   const [account, setAccount] = useState('');
   const [name, setName] = useState('');
@@ -77,7 +79,11 @@ export function WithdrawalModal({ user, onClose, onChanged }: { user: UserDto; o
       setError(t(VALIDATION_KEYS[validationError], { min: MIN_CREDITS.toLocaleString() }));
       return;
     }
-    if (!window.confirm(t('withdrawal.confirmSubmit'))) return;
+    const confirmed = await confirmAction({
+      message: t('withdrawal.confirmSubmit'),
+      confirmLabel: t('confirm.submit'),
+    });
+    if (!confirmed) return;
     setSubmitting(true); setError('');
     try {
       await createWithdrawal({ amountCredits: amount.trim(), payoutAccount: account.trim(), payoutRecipientName: name.trim() });
@@ -88,7 +94,12 @@ export function WithdrawalModal({ user, onClose, onChanged }: { user: UserDto; o
   }
 
   async function cancel(row: WithdrawalDto): Promise<void> {
-    if (!window.confirm(t('withdrawal.confirmCancel', { requestNo: row.requestNo }))) return;
+    const confirmed = await confirmAction({
+      message: t('withdrawal.confirmCancel', { requestNo: row.requestNo }),
+      confirmLabel: t('confirm.cancelRequest'),
+      tone: 'warning',
+    });
+    if (!confirmed) return;
     setBusyId(row.id); setError('');
     try { await cancelWithdrawal(row.id); await Promise.all([refresh(), onChanged()]); }
     catch { setError(t('withdrawal.cancelFailed')); }

@@ -1,0 +1,146 @@
+.viewport {
+  position: fixed;
+  z-index: 300;
+  top: 22px;
+  right: 22px;
+  display: grid;
+  width: min(390px, calc(100vw - 32px));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  --toast-color: var(--accent);
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--toast-color) 34%, var(--border));
+  border-radius: 14px;
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--toast-color) 12%, transparent), transparent 48%),
+    rgba(23, 26, 33, 0.96);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38), 0 0 24px color-mix(in srgb, var(--toast-color) 9%, transparent);
+  padding: 12px 12px 12px 14px;
+  pointer-events: auto;
+  animation: toast-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  backdrop-filter: blur(18px);
+}
+
+.success {
+  --toast-color: var(--accent-2);
+}
+
+.info {
+  --toast-color: var(--accent);
+}
+
+.warning {
+  --toast-color: var(--warn);
+}
+
+.error {
+  --toast-color: var(--danger);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--toast-color) 45%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--toast-color) 14%, transparent);
+  color: var(--toast-color);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.icon svg,
+.dismiss svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dismiss svg {
+  width: 18px;
+  height: 18px;
+}
+
+.message {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.dismiss {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.dismiss:hover,
+.dismiss:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  outline: none;
+}
+
+.progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: var(--toast-color);
+  transform-origin: left;
+  animation: toast-progress linear forwards;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, -8px, 0) scale(0.97);
+  }
+}
+
+@keyframes toast-progress {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (max-width: 520px) {
+  .viewport {
+    top: 14px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .progress {
+    animation: none;
+  }
+}

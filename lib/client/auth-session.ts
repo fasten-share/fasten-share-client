@@ -232,8 +232,8 @@ export async function exchangeWechatLogin(
   return data;
 }
 
-export function forceDeviceLogout(): void {
-  setAuthNotice('该设备因账号设备节点超过数量上限，已退出登录。');
+export function forceDeviceLogout(notice = '该设备因账号设备节点超过数量上限，已退出登录。'): void {
+  setAuthNotice(notice);
   clearAuthentication();
 }
 

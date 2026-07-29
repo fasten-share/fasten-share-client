@@ -8,6 +8,7 @@ import {
   consumeAuthNotice,
   createWechatLoginSession,
   exchangeWechatLogin,
+  forceDeviceLogout,
   getAccessToken,
   loadMe,
   logout,
@@ -46,6 +47,13 @@ describe('authentication session', () => {
     setAuthNotice('signed out');
     expect(consumeAuthNotice()).toBe('signed out');
     expect(consumeAuthNotice()).toBe('');
+  });
+
+  it('keeps the localized notice when a device is forced to log out', () => {
+    setAccessToken('token');
+    forceDeviceLogout('device limit reached');
+    expect(getAccessToken()).toBeNull();
+    expect(consumeAuthNotice()).toBe('device limit reached');
   });
 
   it('does not refresh absent, malformed, or long-lived tokens', async () => {

@@ -10,6 +10,7 @@ import {
 } from '@/lib/client/auth';
 import { useI18n } from '@/lib/i18n/context';
 import styles from './ApiKeyModal.module.css';
+import { useConfirmDialog } from './ConfirmDialogProvider';
 
 export function ApiKeyModal({
   apiKeys,
@@ -21,6 +22,7 @@ export function ApiKeyModal({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const { confirmAction } = useConfirmDialog();
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState('');
@@ -45,7 +47,12 @@ export function ApiKeyModal({
   }
 
   async function onDelete(apiKey: ConsumerApiKeyDto): Promise<void> {
-    if (!window.confirm(t('apiKeys.deleteConfirm', { name: apiKey.name }))) return;
+    const confirmed = await confirmAction({
+      message: t('apiKeys.deleteConfirm', { name: apiKey.name }),
+      confirmLabel: t('apiKeys.delete'),
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     setDeletingId(apiKey.id);
     setError('');
     try {
@@ -59,10 +66,14 @@ export function ApiKeyModal({
   }
 
   async function onToggleFreeze(apiKey: ConsumerApiKeyDto): Promise<void> {
-    if (
-      !apiKey.frozen
-      && !window.confirm(t('apiKeys.freezeConfirm', { name: apiKey.name }))
-    ) return;
+    if (!apiKey.frozen) {
+      const confirmed = await confirmAction({
+        message: t('apiKeys.freezeConfirm', { name: apiKey.name }),
+        confirmLabel: t('apiKeys.freeze'),
+        tone: 'warning',
+      });
+      if (!confirmed) return;
+    }
     setFreezingId(apiKey.id);
     setError('');
     try {
