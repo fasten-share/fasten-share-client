@@ -17,6 +17,7 @@ import {
 import { useI18n } from '@/lib/i18n/context';
 
 const USER_REFRESH_INTERVAL_MS = 15 * 60_000;
+const USER_REFRESH_COOLDOWN_MS = 15_000;
 
 export function useHomeSession() {
   const router = useRouter();
@@ -28,6 +29,9 @@ export function useHomeSession() {
   const [apiKeysError, setApiKeysError] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
   const refreshInFlight = useRef(false);
+  const refreshCooldownUntil = useRef(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshCooldownSeconds, setRefreshCooldownSeconds] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -100,12 +104,19 @@ export function useHomeSession() {
   }, []);
 
   const refreshUser = useCallback(async () => {
-    if (refreshInFlight.current) return;
+    const now = Date.now();
+    if (refreshInFlight.current || now < refreshCooldownUntil.current) return;
+
+    refreshCooldownUntil.current = now + USER_REFRESH_COOLDOWN_MS;
+    setRefreshCooldownSeconds(Math.ceil(USER_REFRESH_COOLDOWN_MS / 1000));
     refreshInFlight.current = true;
+    setRefreshing(true);
     try {
       const next = await loadMe();
       if (next) setUser(next);
       else {
+        refreshCooldownUntil.current = 0;
+        setRefreshCooldownSeconds(0);
         setUser(null);
         router.replace('/login');
       }
@@ -113,8 +124,23 @@ export function useHomeSession() {
       // Keep the last known balance when a background refresh fails temporarily.
     } finally {
       refreshInFlight.current = false;
+      setRefreshing(false);
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!refreshCooldownSeconds) return;
+    const timer = window.setInterval(() => {
+      const remaining = refreshCooldownUntil.current - Date.now();
+      if (remaining <= 0) {
+        setRefreshCooldownSeconds(0);
+        window.clearInterval(timer);
+        return;
+      }
+      setRefreshCooldownSeconds(Math.ceil(remaining / 1000));
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [refreshCooldownSeconds]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -133,6 +159,8 @@ export function useHomeSession() {
 
   const onLogout = useCallback(async () => {
     await logout();
+    refreshCooldownUntil.current = 0;
+    setRefreshCooldownSeconds(0);
     setUser(null);
     setApiKeys([]);
     setSelectedApiKeyId('');
@@ -141,7 +169,8 @@ export function useHomeSession() {
 
   return {
     user, setUser, apiKeys, selectedApiKeyId, setSelectedApiKeyId,
-    apiKeysLoading, apiKeysError, authLoading, updateApiKeys, refreshUser, onLogout,
+    apiKeysLoading, apiKeysError, authLoading, updateApiKeys, refreshUser, refreshing,
+    refreshCooldownSeconds, onLogout,
   };
 }
 

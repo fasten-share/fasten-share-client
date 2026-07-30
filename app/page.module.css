@@ -164,6 +164,16 @@
   color: var(--text);
 }
 
+.accountPill > button:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.refreshButton {
+  min-width: 58px;
+}
+
 .dot {
   width: 9px;
   height: 9px;
