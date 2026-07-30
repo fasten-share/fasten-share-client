@@ -28,7 +28,8 @@ export default function Home() {
   const [withdrawalOpen, setWithdrawalOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDetailsElement>(null);
   const { user, setUser, apiKeys, selectedApiKeyId, setSelectedApiKeyId,
-    apiKeysLoading, apiKeysError, authLoading, updateApiKeys, refreshUser, onLogout } = useHomeSession();
+    apiKeysLoading, apiKeysError, authLoading, updateApiKeys, refreshUser, refreshing,
+    refreshCooldownSeconds, onLogout } = useHomeSession();
   const [tab, setTab] = usePersistentTab(user?.id);
   const { status, setStatus, signalUrl, setBridgeHandle, autoShareNotice,
     onStatus, setAutoShare, discover } = useHomeProducer();
@@ -81,14 +82,7 @@ export default function Home() {
         {authLoading ? (
           <span className="muted">{t('auth.accountLoading')}</span>
         ) : user ? (
-          <div
-            className={styles.accountPill}
-            onClick={(event) => {
-              // Dropdown actions are outside the clickable account summary area.
-              if ((event.target as HTMLElement).closest(`.${styles.accountMenuPanel}`)) return;
-              void refreshUser();
-            }}
-          >
+          <div className={styles.accountPill}>
             <span title={user.id}>{user.displayName || t('auth.userFallback', { id: user.id })}</span>
             <span
               className={styles.creditBalance}
@@ -107,6 +101,23 @@ export default function Home() {
                 })}
               </span>
             </span>
+            <button
+              type="button"
+              className={styles.refreshButton}
+              aria-label={t('auth.refresh')}
+              aria-busy={refreshing}
+              disabled={refreshing || refreshCooldownSeconds > 0}
+              onClick={() => void refreshUser()}
+              title={refreshCooldownSeconds > 0
+                ? t('auth.refreshCooldownTitle', { seconds: refreshCooldownSeconds })
+                : t('auth.refresh')}
+            >
+              {refreshing
+                ? t('auth.refreshing')
+                : refreshCooldownSeconds > 0
+                  ? t('auth.refreshCountdown', { seconds: refreshCooldownSeconds })
+                  : t('auth.refresh')}
+            </button>
             <details className={styles.accountMenu} ref={accountMenuRef}>
               <summary aria-label={t('auth.accountMenu')} title={t('auth.accountMenu')}>⋯</summary>
               <div className={styles.accountMenuPanel}>
