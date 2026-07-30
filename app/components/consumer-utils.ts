@@ -11,6 +11,8 @@ export interface ConsumerNodeRow {
   followerCount: number;
   callCount: number;
   costMultiplier: number;
+  creditThreshold: number;
+  creditThresholdMet: boolean;
   following: boolean;
   rating: number;
   rated: boolean;
@@ -50,3 +52,6 @@ export function buildToolEndpoint(origin: string, target: CurlTarget, tool: Excl
 export function rowKey(row: Pick<ConsumerRow, 'protocol' | 'model'>): string { return `${row.protocol} ${row.model}`; }
 export function targetKey(target: CurlTarget): string { return `${target.protocol}\0${target.model}\0${target.peerId}`; }
 export function formatMultiplier(value: number): string { return `${value.toFixed(6).replace(/\.?0+$/, '')}x`; }
+export function formatCredits(value: number): string {
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
+}

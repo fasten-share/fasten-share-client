@@ -26,6 +26,8 @@ export interface Candidate {
   onlineMs: number;
   userId: string;
   costMultipliers?: Record<string, number>;
+  creditThresholds?: Record<string, number>;
+  creditThresholdMet?: Record<string, boolean>;
   supportedTools?: Record<string, ToolId[]>;
   versionPrefixes?: Record<string, string>;
 }

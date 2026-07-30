@@ -214,6 +214,19 @@
   opacity: 0.55;
 }
 
+.creditThresholdWarning {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 150px;
+  color: var(--danger, #ef6b73);
+  font-size: 12px;
+}
+
+.creditThresholdWarning strong {
+  font-size: 13px;
+}
+
 .nodeRow .pid {
   overflow: hidden;
   text-overflow: ellipsis;

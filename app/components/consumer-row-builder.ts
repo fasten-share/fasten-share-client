@@ -23,6 +23,8 @@ export function buildConsumerRows(
           username: summary?.username ?? null, followerCount: followed.get(candidate.userId)?.followerCount ?? summary?.followerCount ?? 0,
           badge: followed.get(candidate.userId)?.badge ?? summary?.badge ?? null,
           callCount: summary?.callCount ?? 0, costMultiplier: candidate.costMultipliers?.[model] ?? 1,
+          creditThreshold: candidate.creditThresholds?.[model] ?? 0,
+          creditThresholdMet: candidate.creditThresholdMet?.[model] !== false,
           following: scope === 'following' || followed.has(candidate.userId), rating: rating?.rating ?? 0,
           rated: rating?.rated ?? false, myRating: rating?.myRating ?? null,
           supportedTools: normalizeSupportedTools(candidate.supportedTools?.[model], candidate.protocol),

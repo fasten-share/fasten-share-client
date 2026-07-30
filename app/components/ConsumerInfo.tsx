@@ -6,7 +6,7 @@ import type { DiscoverFn } from '@/lib/client/status-link';
 import { useI18n } from '@/lib/i18n/context';
 import styles from './ConsumerInfo.module.css';
 import type { ToolId } from '@/lib/tool-support';
-import { formatMultiplier, rowKey, targetKey } from './consumer-utils';
+import { formatCredits, formatMultiplier, rowKey, targetKey } from './consumer-utils';
 import { CurlModal, ToolConfigModal } from './ConsumerToolModals';
 import { useConsumerInfoState } from './useConsumerInfoState';
 import { RatingStars } from './RatingStars';
@@ -157,56 +157,67 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
                                 ? t('common.unfollow')
                                 : t('common.follow')}
                           </button>
-                          <div
-                            className={`${styles.usageControls} ${
-                              selectedApiKey ? '' : styles.usageControlsDisabled
-                            }`}
-                          >
-                            <select
-                              value={selectedApiKey?.id ?? ''}
-                              aria-label={t('consumer.selectApiKey')}
-                              disabled={!apiKeys.some((apiKey) => !apiKey.frozen)}
-                              onChange={(event) => onSelectApiKey(event.target.value)}
+                          {node.creditThresholdMet ? (
+                            <div
+                              className={`${styles.usageControls} ${
+                                selectedApiKey ? '' : styles.usageControlsDisabled
+                              }`}
                             >
-                              {!apiKeys.some((apiKey) => !apiKey.frozen) ? (
-                                <option value="">{t('consumer.noApiKeyOption')}</option>
-                              ) : null}
-                              {apiKeys.map((apiKey) => (
-                                <option
-                                  value={apiKey.id}
-                                  key={apiKey.id}
-                                  disabled={apiKey.frozen}
-                                >
-                                  {apiKey.name}
-                                  {apiKey.frozen ? ` (${t('apiKeys.frozen')})` : ''}
-                                </option>
-                              ))}
-                            </select>
-                            <select
-                              value={selectedTool}
-                              aria-label={t('consumer.selectTool')}
-                              disabled={!selectedApiKey}
-                              onChange={(e) =>
-                                setToolByTarget((current) => ({
-                                  ...current,
-                                  [targetKey(target)]: e.target.value as ToolId,
-                                }))
-                              }
-                            >
-                              {node.supportedTools.map((tool) => (
-                                <option value={tool} key={tool}>{tool}</option>
-                              ))}
-                            </select>
-                            <button
-                              className="secondary"
-                              disabled={!selectedApiKey || configuringTarget != null}
-                              onClick={() => void beginToolConfig(target, selectedTool)}
-                            >
-                              {selectedTool === 'curl'
-                                ? t('consumer.copyCurl')
-                                : t('consumer.configureTool', { tool: selectedTool })}
-                            </button>
-                          </div>
+                              <select
+                                value={selectedApiKey?.id ?? ''}
+                                aria-label={t('consumer.selectApiKey')}
+                                disabled={!apiKeys.some((apiKey) => !apiKey.frozen)}
+                                onChange={(event) => onSelectApiKey(event.target.value)}
+                              >
+                                {!apiKeys.some((apiKey) => !apiKey.frozen) ? (
+                                  <option value="">{t('consumer.noApiKeyOption')}</option>
+                                ) : null}
+                                {apiKeys.map((apiKey) => (
+                                  <option
+                                    value={apiKey.id}
+                                    key={apiKey.id}
+                                    disabled={apiKey.frozen}
+                                  >
+                                    {apiKey.name}
+                                    {apiKey.frozen ? ` (${t('apiKeys.frozen')})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                value={selectedTool}
+                                aria-label={t('consumer.selectTool')}
+                                disabled={!selectedApiKey}
+                                onChange={(e) =>
+                                  setToolByTarget((current) => ({
+                                    ...current,
+                                    [targetKey(target)]: e.target.value as ToolId,
+                                  }))
+                                }
+                              >
+                                {node.supportedTools.map((tool) => (
+                                  <option value={tool} key={tool}>{tool}</option>
+                                ))}
+                              </select>
+                              <button
+                                className="secondary"
+                                disabled={!selectedApiKey || configuringTarget != null}
+                                onClick={() => void beginToolConfig(target, selectedTool)}
+                              >
+                                {selectedTool === 'curl'
+                                  ? t('consumer.copyCurl')
+                                  : t('consumer.configureTool', { tool: selectedTool })}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className={styles.creditThresholdWarning}>
+                              <strong>{t('consumer.creditThresholdNotMet')}</strong>
+                              <span>
+                                {t('consumer.creditThresholdRequired', {
+                                  credits: formatCredits(node.creditThreshold),
+                                })}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

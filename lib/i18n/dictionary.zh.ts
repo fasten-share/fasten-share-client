@@ -250,6 +250,8 @@ export const zh: Record<keyof typeof en, string> = {
   'consumer.ratingAlreadySubmitted': '您本月已经评价过该用户。',
   'consumer.ratingSubmitFailed': '评分提交失败，请重试。',
   'consumer.costMultiplier': '积分消耗倍率',
+  'consumer.creditThresholdNotMet': '积分门槛不足',
+  'consumer.creditThresholdRequired': '门槛积分：{credits}',
   'consumer.versionPrefix': '版本号前缀',
   'consumer.searchToSee': '搜索以查看可用模型。',
   'consumer.noMatch': '没有匹配的模型。试试其他名称或清空协议。',

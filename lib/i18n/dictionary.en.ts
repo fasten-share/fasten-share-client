@@ -250,6 +250,8 @@ export const en = {
   'consumer.ratingAlreadySubmitted': 'You have already rated this user this month.',
   'consumer.ratingSubmitFailed': 'Failed to submit rating. Please try again.',
   'consumer.costMultiplier': 'Credit cost multiplier',
+  'consumer.creditThresholdNotMet': 'Credit threshold not met',
+  'consumer.creditThresholdRequired': 'Required credits: {credits}',
   'consumer.versionPrefix': 'Version prefix',
   'consumer.searchToSee': 'Search to see available models.',
   'consumer.noMatch': 'No matching models. Try a different name or clear the protocol.',
