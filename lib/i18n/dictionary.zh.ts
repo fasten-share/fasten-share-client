@@ -271,6 +271,7 @@ export const zh: Record<keyof typeof en, string> = {
   'consumer.noApiKeyOption': '无 API Key',
   'consumer.copyCurl': '复制 curl',
   'consumer.configureTool': '配置 {tool}',
+  'consumer.toolWebsite': '未安装？点此进【{tool}】官网',
   'consumer.toolConfigPreviewTitle': '预览 {tool} 配置',
   'consumer.toolConfigPreviewDescription': '请确认以下配置目标。点击确认前不会修改配置文件。',
   'consumer.previewTool': '工具',

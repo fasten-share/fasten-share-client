@@ -1,6 +1,6 @@
 import type { ConsumerApiKeyDto } from '@/lib/client/auth';
 import type { ToolConfigBackup, ToolConfigInspection } from '@/lib/tool-config-client';
-import type { ToolId } from '@/lib/tool-support';
+import { CONFIGURABLE_TOOL_INFO, type ToolId } from '@/lib/tool-support';
 import type { useI18n } from '@/lib/i18n/context';
 import { buildCurl, buildToolEndpoint, type CurlTarget } from './consumer-utils';
 import styles from './ConsumerInfo.module.css';
@@ -29,6 +29,7 @@ export function ToolConfigModal({ target, tool, origin, apiKey, inspection, stag
   restorePreview: RestorePreview | null; working: boolean; t: Translate; onClose: () => void;
   onClean: () => void; onCheckAndConfigure: () => void; onPreviewRestore: (id: string) => void; onRestore: (id: string) => void;
 }) {
+  const toolInfo = CONFIGURABLE_TOOL_INFO[tool];
   return <div className="modal-overlay" onClick={onClose}><div className={`modal ${modalStyles.modal}`} onClick={(event) => event.stopPropagation()}>
     <div className={modalStyles.body}>
       <h3>{t('consumer.toolConfigPreviewTitle', { tool })}</h3><p>{t('consumer.toolConfigPreviewDescription')}</p>
@@ -42,7 +43,9 @@ export function ToolConfigModal({ target, tool, origin, apiKey, inspection, stag
       {restorePreview && <><h4>{t('consumer.restorePreviewTitle')}</h4><pre>{[...restorePreview.files.map((file) => `${t('consumer.restoreFile')}: ${file.path}`), ...restorePreview.environment.map((item) => `${t('consumer.restoreEnv')}: ${item.name} (${item.source})`)].join('\n')}</pre></>}
       {backups.length > 0 && !restorePreview && <div className="actions"><label>{t('consumer.availableBackups')}</label>{backups.map((backup) => <button key={backup.id} className="secondary" disabled={working} onClick={() => onPreviewRestore(backup.id)}>{t('consumer.previewRestore')} {new Date(backup.createdAt).toLocaleString()}</button>)}</div>}
     </div>
-    <div className={`modal-actions ${modalStyles.footer}`}><button className="secondary" onClick={onClose}>{t('consumer.close')}</button>
+    <div className={`modal-actions ${modalStyles.footer}`}>
+      <a className={modalStyles.websiteLink} href={toolInfo.website} target="_blank" rel="noreferrer">{t('consumer.toolWebsite', { tool: toolInfo.name })}</a>
+      <button className="secondary" onClick={onClose}>{t('consumer.close')}</button>
       {restorePreview ? <button disabled={working} onClick={() => onRestore(restorePreview.id)}>{t('consumer.confirmRestore')}</button> : stage === 'inspect' && !inspection.clean ? <button disabled={working} onClick={onClean}>{t('consumer.confirmCleanup')}</button> : <button disabled={working} onClick={onCheckAndConfigure}>{t('consumer.checkAndConfigure')}</button>}
     </div>
   </div></div>;

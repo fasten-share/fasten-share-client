@@ -271,6 +271,7 @@ export const en = {
   'consumer.noApiKeyOption': 'No API key',
   'consumer.copyCurl': 'Copy curl',
   'consumer.configureTool': 'Configure {tool}',
+  'consumer.toolWebsite': 'Not installed? Visit the {tool} website',
   'consumer.toolConfigPreviewTitle': 'Preview {tool} configuration',
   'consumer.toolConfigPreviewDescription':
     'Review the target below. The configuration file is not changed until you confirm.',

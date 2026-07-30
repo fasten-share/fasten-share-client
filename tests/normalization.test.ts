@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_MAX_CONCURRENCY, normalizeMaxConcurrency } from '@/lib/concurrency';
 import { MAX_COST_MULTIPLIER, MIN_COST_MULTIPLIER, normalizeCostMultiplier } from '@/lib/cost';
 import { defaultVersionPrefix, normalizeVersionPrefix, versionPrefixOrDefault } from '@/lib/version-prefix';
-import { TOOL_IDS, isToolId, normalizeSupportedTools, toolsForProtocol } from '@/lib/tool-support';
+import {
+  CONFIGURABLE_TOOL_INFO,
+  TOOL_IDS,
+  isToolId,
+  normalizeSupportedTools,
+  toolsForProtocol,
+} from '@/lib/tool-support';
 import {
   consumerToolProtocol,
   normalizeProtocolConversions,
@@ -65,6 +71,14 @@ describe('tool support', () => {
     expect(normalizeSupportedTools(['hermes', 'curl', 'hermes', 'bad'])).toEqual(['curl', 'hermes']);
     expect(normalizeSupportedTools(['codex'], 'anthropic')).toEqual(['curl']);
     expect(normalizeSupportedTools(undefined)).toEqual(['curl']);
+  });
+
+  it('provides an official website for every configurable tool', () => {
+    expect(Object.keys(CONFIGURABLE_TOOL_INFO)).toEqual(TOOL_IDS.filter((tool) => tool !== 'curl'));
+    for (const { name, website } of Object.values(CONFIGURABLE_TOOL_INFO)) {
+      expect(name).not.toBe('');
+      expect(new URL(website).protocol).toBe('https:');
+    }
   });
 });
 

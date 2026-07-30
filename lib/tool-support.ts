@@ -1,6 +1,15 @@
 export const TOOL_IDS = ['curl', 'claude', 'codex', 'opencode', 'claw', 'hermes'] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
+export type ConfigurableToolId = Exclude<ToolId, 'curl'>;
+
+export const CONFIGURABLE_TOOL_INFO: Record<ConfigurableToolId, { name: string; website: string }> = {
+  claude: { name: 'Claude', website: 'https://claude.com/product/claude-code' },
+  codex: { name: 'Codex', website: 'https://openai.com/codex/' },
+  opencode: { name: 'OpenCode', website: 'https://opencode.ai/' },
+  claw: { name: 'OpenClaw', website: 'https://openclaw.ai/' },
+  hermes: { name: 'Hermes', website: 'https://nousresearch.net/hermes-agent/' },
+};
 
 export function isToolId(value: unknown): value is ToolId {
   return typeof value === 'string' && (TOOL_IDS as readonly string[]).includes(value);
