@@ -17,7 +17,7 @@ Fasten Share Client 是 Fasten Share 的开源本地客户端。它提供浏览�
 
 ### 使用别人共享的模型节点
 
-作为消费者，你可以按模型名或协议搜索在线生产者，选择消费者 API Key，然后复制生成的服务地址，配置到兼容 OpenAI / Anthropic 风格接口的工具或客户端中。工具配置助手也会检测并清理可能覆盖 API Key 的 OAuth 登录状态；文件型凭证会随原配置一起备份。Claude、Codex、OpenCode、OpenClaw 和 Hermes 的生成配置均锁定为仅使用 API Key，不会回退到 OAuth provider。
+作为消费者，你可以按模型名或协议搜索在线生产者，选择消费者 API Key，然后复制生成的服务地址，配置到兼容 OpenAI / Anthropic 风格接口的工具或客户端中。工具配置助手也会检测并清理可能覆盖 API Key 的 OAuth 登录状态；文件型凭证会随原配置一起备份。Claude、Codex、OpenCode、OpenClaw 和 Hermes 的生成配置均锁定为仅使用 API Key，不会回退到 OAuth provider；Pi 会在 `models.json` 中注册使用内嵌 API Key 的 Fasten Share provider，并保留其现有设置与认证。
 
 消费者模型流量走的是 UI 中复制的 Fasten Share 服务端地址，不经过本地 Next.js 页面。
 

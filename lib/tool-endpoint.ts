@@ -7,7 +7,7 @@ import type { ToolId } from './tool-support';
  */
 export function toolBaseUrlIncludesVersionPrefix(tool: ToolId, protocol: string): boolean {
   if (tool === 'claude') return false;
-  if (protocol === 'anthropic' && (tool === 'claw' || tool === 'hermes')) return false;
+  if (protocol === 'anthropic' && (tool === 'claw' || tool === 'hermes' || tool === 'pi')) return false;
   return true;
 }
 

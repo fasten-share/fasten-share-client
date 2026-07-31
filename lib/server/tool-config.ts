@@ -16,6 +16,7 @@ const CONFLICTS: Record<ToolId, string[]> = {
   opencode: ['OPENCODE_CONFIG', 'OPENCODE_CONFIG_CONTENT'],
   claw: ['OPENAI_API_KEY', 'OPENAI_API_KEYS', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_API_KEY'],
   hermes: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_TOKEN', 'HERMES_API_MODE'],
+  pi: [],
 };
 
 const DATA_DIR = process.env.FS_DATA_DIR || join(homedir(), '.fasten-share');
@@ -60,6 +61,10 @@ function configPaths(tool: Exclude<ToolId, 'curl'>): string[] {
         join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'auth.json'),
       ];
     }
+    case 'pi': {
+      const dir = process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent');
+      return [join(dir, 'models.json')];
+    }
   }
 }
 
@@ -95,6 +100,7 @@ function oauthConflicts(tool: Exclude<ToolId, 'curl'>, paths: string[]): OAuthCo
     return existing.has(path) && fileContainsOAuth(path) ? [{ id: 'opencode-auth', provider: 'OpenCode provider', source: path, removable: true }] : [];
   }
   if (tool === 'claw') return [...existing].filter((path) => path.endsWith('auth-profiles.json') && fileContainsOAuth(path)).map((path) => ({ id: sourceId('oauth-file', 'OpenClaw', path), provider: 'OpenClaw provider profile', source: path, removable: true }));
+  if (tool === 'pi') return [];
   const hermesHome = process.env.HERMES_HOME || join(homedir(), '.hermes');
   return [...existing].filter(fileContainsOAuth).map((path) => ({
     id: sourceId('oauth-file', 'Hermes', path),

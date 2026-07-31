@@ -350,7 +350,7 @@ export const en = {
     'The higher the credit cost multiplier, the more credits you earn for producing tokens. The lower the multiplier, the more likely your tokens are to be used sooner.',
   'producer.maxConcurrency': 'Maximum concurrent requests',
   'producer.supportedTools': 'Supported consumer tools',
-  'producer.supportedToolsHint': 'Options are filtered for {protocol}; at least one is required. Claude requires anthropic, while Codex requires openai-response.',
+  'producer.supportedToolsHint': 'Options are filtered for {protocol}; at least one is required. Claude requires anthropic, Codex requires openai-response, and Pi does not support azure-openai yet.',
   'producer.saveStart': 'Save & start sharing',
   'producer.starting': 'Starting…',
   'producer.stop': 'Stop sharing',

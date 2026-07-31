@@ -65,6 +65,9 @@ describe('tool support', () => {
     expect(toolsForProtocol('anthropic')).not.toContain('codex');
     expect(toolsForProtocol('openai-response')).toEqual(expect.arrayContaining(['codex', 'opencode']));
     expect(toolsForProtocol('gemini')).not.toEqual(expect.arrayContaining(['claude', 'codex', 'opencode']));
+    expect(toolsForProtocol('gemini')).toContain('pi');
+    expect(toolsForProtocol('ollama')).toContain('pi');
+    expect(toolsForProtocol('azure-openai')).not.toContain('pi');
   });
 
   it('deduplicates, orders, filters, and always falls back to curl', () => {
