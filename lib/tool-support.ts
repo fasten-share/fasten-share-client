@@ -8,7 +8,7 @@ export const CONFIGURABLE_TOOL_INFO: Record<ConfigurableToolId, { name: string; 
   codex: { name: 'Codex', website: 'https://openai.com/codex/' },
   opencode: { name: 'OpenCode', website: 'https://opencode.ai/' },
   claw: { name: 'OpenClaw', website: 'https://openclaw.ai/' },
-  hermes: { name: 'Hermes', website: 'https://nousresearch.net/hermes-agent/' },
+  hermes: { name: 'Hermes', website: 'https://hermes-agent.nousresearch.com/' },
 };
 
 export function isToolId(value: unknown): value is ToolId {
