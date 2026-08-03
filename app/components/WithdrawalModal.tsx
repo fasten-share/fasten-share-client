@@ -14,6 +14,7 @@ import {
   validateWithdrawalInput,
   type WithdrawalValidationError,
 } from '@/lib/client/withdrawal-amount';
+import { formatCreditBalance } from '../home-utils';
 import { useI18n } from '@/lib/i18n/context';
 import type { MessageKey } from '@/lib/i18n/dictionary';
 import { useConfirmDialog } from './ConfirmDialogProvider';
@@ -111,7 +112,10 @@ export function WithdrawalModal({ user, onClose, onChanged }: { user: UserDto; o
       <div className={`modal ${styles.modal}`} onClick={(event) => event.stopPropagation()}>
         <h3>支付宝提现</h3>
         <p className="muted">仅生产积分可提现。最低 {MIN_CREDITS.toLocaleString()} 积分，100,000 积分 = 1 元。</p>
-        <div className={styles.balance}>可提现生产积分：<strong>{Number(user.withdrawableProducerBalance).toLocaleString()}</strong></div>
+        <div className={styles.balance}>
+          可提现生产积分：
+          <strong title={user.withdrawableProducerBalance}>{formatCreditBalance(user.withdrawableProducerBalance)}</strong>
+        </div>
         <form className={styles.form} onSubmit={submit} noValidate>
           <label>提现积分<input inputMode="numeric" pattern="[0-9]+" required value={amount} onChange={(event) => { setAmount(event.target.value); setError(''); }} aria-describedby="withdrawal-estimate" /></label>
           <div id="withdrawal-estimate" className={styles.estimate} aria-live="polite">
