@@ -53,5 +53,6 @@ export function rowKey(row: Pick<ConsumerRow, 'protocol' | 'model'>): string { r
 export function targetKey(target: CurlTarget): string { return `${target.protocol}\0${target.model}\0${target.peerId}`; }
 export function formatMultiplier(value: number): string { return `${value.toFixed(6).replace(/\.?0+$/, '')}x`; }
 export function formatCredits(value: number): string {
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value);
+  // Floor (not round) so a 99.9 balance shows 99, never rounding up to 100.
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.floor(value));
 }
