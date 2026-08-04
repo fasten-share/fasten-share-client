@@ -26,6 +26,7 @@ describe('tool configuration protocol policy', () => {
     [target('opencode', 'anthropic'), 'OpenCode'],
     [target('claw', 'azure-openai'), 'OpenClaw'],
     [target('hermes', 'gemini'), 'Hermes'],
+    [target('pi', 'azure-openai'), 'Pi'],
   ] as const)('rejects unsupported target combinations for %s', (value, message) => {
     expect(() => assertSupportedTarget(value)).toThrow(message);
   });
@@ -37,6 +38,7 @@ describe('tool configuration protocol policy', () => {
     target('opencode', 'openai-response'),
     target('claw', 'anthropic'),
     target('hermes', 'openai'),
+    target('pi', 'openai-response'),
   ])('accepts $tool with $protocol', (value) => {
     expect(() => assertSupportedTarget(value)).not.toThrow();
   });
@@ -156,6 +158,29 @@ custom = "preserved"
       base_url: 'https://share.example/v1',
       api_key: 'token',
       api_mode: apiMode,
+    });
+  });
+
+  it.each([
+    ['openai-response', 'openai-responses'],
+    ['anthropic', 'anthropic-messages'],
+    ['gemini', 'google-generative-ai'],
+    ['openai', 'openai-completions'],
+    ['ollama', 'openai-completions'],
+  ])('maps Pi %s to %s and preserves unrelated providers', (protocol, api) => {
+    const output = JSON.parse(updateToolConfig(
+      '{"theme":"dark","providers":{"other":{"baseUrl":"https://other"},"fasten-share":{"stale":true}}}',
+      target('pi', protocol),
+      'token',
+    ));
+
+    expect(output.theme).toBe('dark');
+    expect(output.providers.other).toEqual({ baseUrl: 'https://other' });
+    expect(output.providers['fasten-share']).toEqual({
+      baseUrl: 'https://share.example/v1',
+      api,
+      apiKey: 'token',
+      models: [{ id: 'test-model', name: 'test-model' }],
     });
   });
 

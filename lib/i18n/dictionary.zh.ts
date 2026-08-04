@@ -349,7 +349,7 @@ export const zh: Record<keyof typeof en, string> = {
     '积分消耗倍率越高，您通过生产token获得的积分就越高，积分消耗倍率越低，您的token就越容易被尽快使用',
   'producer.maxConcurrency': '最大并发请求数',
   'producer.supportedTools': '支持的消费者工具',
-  'producer.supportedToolsHint': '以下选项按 {protocol} 协议筛选，至少选择一项。Claude 仅支持 anthropic，Codex 仅支持 openai-response。',
+  'producer.supportedToolsHint': '以下选项按 {protocol} 协议筛选，至少选择一项。Claude 仅支持 anthropic，Codex 仅支持 openai-response，Pi 暂不支持 azure-openai。',
   'producer.saveStart': '保存并开始共享',
   'producer.starting': '启动中…',
   'producer.stop': '停止共享',

@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const directories: string[] = [];
 const originalOpenAiKey = process.env.OPENAI_API_KEY;
+const originalPiCodingAgentDir = process.env.PI_CODING_AGENT_DIR;
 
 async function freshToolConfig() {
   const directory = mkdtempSync(join(tmpdir(), 'fasten-tool-config-'));
@@ -39,6 +40,8 @@ afterEach(() => {
   vi.resetModules();
   delete process.env.FS_DATA_DIR;
   delete process.env.CODEX_HOME;
+  if (originalPiCodingAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = originalPiCodingAgentDir;
   if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
   else process.env.OPENAI_API_KEY = originalOpenAiKey;
   while (directories.length) rmSync(directories.pop()!, { recursive: true, force: true });
@@ -108,6 +111,54 @@ describe('tool configuration inspection and lifecycle', () => {
     expect(restored.clean).toBe(false);
     expect(readFileSync(configPath, 'utf8')).toBe('model = "original"\n');
     expect(readFileSync(authPath, 'utf8')).toContain('access_token');
+  });
+
+  it('configures only Pi models.json in the overridden agent directory and restores it', async () => {
+    const { directory, module } = await freshToolConfig();
+    const piDir = join(directory, 'pi-agent');
+    const modelsPath = join(piDir, 'models.json');
+    const settingsPath = join(piDir, 'settings.json');
+    const authPath = join(piDir, 'auth.json');
+    process.env.PI_CODING_AGENT_DIR = piDir;
+    mkdirSync(piDir, { recursive: true });
+    writeFileSync(modelsPath, '{"providers":{"original":{"baseUrl":"https://original"}}}\n');
+    writeFileSync(settingsPath, '{"theme":"dark"}\n');
+    writeFileSync(authPath, '{"anthropic":{"type":"oauth"}}\n');
+
+    expect(module.inspectToolConfig('pi')).toMatchObject({
+      configPath: modelsPath,
+      configFiles: [{ path: modelsPath, exists: true }],
+      environmentConflicts: [],
+      oauthConflicts: [],
+      clean: false,
+    });
+
+    const cleaned = module.cleanupToolConfig('pi');
+    expect(cleaned.removedConfigPaths).toEqual([modelsPath]);
+    expect(readFileSync(settingsPath, 'utf8')).toBe('{"theme":"dark"}\n');
+    expect(readFileSync(authPath, 'utf8')).toContain('oauth');
+
+    module.configureTool({
+      tool: 'pi',
+      protocol: 'anthropic',
+      model: 'claude-test',
+      baseUrl: 'https://share.example/route',
+    }, 'fresh-token');
+    expect(JSON.parse(readFileSync(modelsPath, 'utf8'))).toEqual({
+      providers: {
+        'fasten-share': {
+          baseUrl: 'https://share.example/route',
+          api: 'anthropic-messages',
+          apiKey: 'fresh-token',
+          models: [{ id: 'claude-test', name: 'claude-test' }],
+        },
+      },
+    });
+
+    module.restoreToolConfig('pi', cleaned.backupId);
+    expect(readFileSync(modelsPath, 'utf8')).toContain('original');
+    expect(readFileSync(settingsPath, 'utf8')).toBe('{"theme":"dark"}\n');
+    expect(readFileSync(authPath, 'utf8')).toContain('oauth');
   });
 
   it('returns an empty cleanup result and rejects invalid or foreign backups', async () => {

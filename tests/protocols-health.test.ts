@@ -63,7 +63,7 @@ describe('producer health', () => {
 
   it('aggregates advertised offerings and preserves first backend defaults', () => {
     const backends = [
-      backend({ id: 'first', models: ['shared', 'a'], costMultiplier: 2, maxConcurrency: 7, supportedTools: ['curl', 'opencode'], versionPrefix: '/custom' }),
+      backend({ id: 'first', models: ['shared', 'a'], costMultiplier: 2, maxConcurrency: 7, supportedTools: ['curl', 'opencode', 'pi'], versionPrefix: '/custom' }),
       backend({ id: 'second', models: ['shared', 'b'], costMultiplier: 3, maxConcurrency: 9, supportedTools: ['hermes'], versionPrefix: '/v2' }),
       backend({ id: 'disabled', models: ['hidden'], enabled: false }),
       backend({ id: 'unhealthy', models: ['hidden2'] }),
@@ -72,7 +72,7 @@ describe('producer health', () => {
     expect(result).toEqual([{
       protocol: 'openai', models: ['shared', 'a', 'b'],
       costMultipliers: { shared: 2, a: 2, b: 3 },
-      supportedTools: { shared: ['curl', 'opencode', 'hermes'], a: ['curl', 'opencode'], b: ['hermes'] },
+      supportedTools: { shared: ['curl', 'opencode', 'hermes', 'pi'], a: ['curl', 'opencode', 'pi'], b: ['hermes'] },
       versionPrefixes: { shared: '/custom', a: '/custom', b: '/v2' },
       maxConcurrency: { shared: 7, a: 7, b: 9 },
     }]);

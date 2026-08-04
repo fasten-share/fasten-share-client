@@ -5,8 +5,9 @@ import { buildCurl, buildToolEndpoint, formatMultiplier, rowKey, targetKey } fro
 
 describe('tool endpoints', () => {
   it.each([
-    ['claude', 'anthropic', false], ['claw', 'anthropic', false], ['hermes', 'anthropic', false],
+    ['claude', 'anthropic', false], ['claw', 'anthropic', false], ['hermes', 'anthropic', false], ['pi', 'anthropic', false],
     ['codex', 'openai-response', true], ['opencode', 'openai', true],
+    ['pi', 'openai-response', true], ['pi', 'gemini', true],
   ] as const)('%s with %s includes prefix: %s', (tool, protocol, expected) => {
     expect(toolBaseUrlIncludesVersionPrefix(tool, protocol)).toBe(expected);
   });
@@ -100,5 +101,6 @@ describe('consumer command helpers', () => {
   it('builds tool endpoints with per-tool prefix rules', () => {
     expect(buildToolEndpoint('https://share', target, 'opencode')).toMatch(/\/peer-1\/v1$/);
     expect(buildToolEndpoint('https://share', { ...target, protocol: 'anthropic' }, 'claude')).toMatch(/\/peer-1$/);
+    expect(buildToolEndpoint('https://share', { ...target, protocol: 'anthropic' }, 'pi')).toMatch(/\/peer-1$/);
   });
 });

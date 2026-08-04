@@ -4,6 +4,9 @@ export type Tab = 'consumer' | 'producer';
 
 export const TAB_STORAGE_KEY = 'fs.tab';
 
+const CREDIT_BALANCE_UNITS = ['', 'K', 'M', 'G', 'T', 'P', 'E'] as const;
+const CREDIT_BALANCE_DECIMAL_SCALE = 100n;
+
 export function formatCreditBalance(balance: string | null | undefined): string {
   const raw = balance?.trim();
   if (!raw) return '0';
@@ -14,11 +17,33 @@ export function formatCreditBalance(balance: string | null | undefined): string 
   const [, sign, integer, fraction = ''] = match;
   const normalizedInteger = integer.replace(/^0+(?=\d)/, '');
   if (normalizedInteger === '0' && !/[1-9]/.test(fraction)) return '0';
-  if (sign === '-' && /[1-9]/.test(fraction)) {
-    return `-${BigInt(normalizedInteger) + 1n}`;
+
+  const hasFraction = /[1-9]/.test(fraction);
+  const absoluteBalance = BigInt(normalizedInteger) + (sign === '-' && hasFraction ? 1n : 0n);
+  let unitIndex = 0;
+  let divisor = 1n;
+  while (absoluteBalance >= divisor * 1_000n && unitIndex < CREDIT_BALANCE_UNITS.length - 1) {
+    divisor *= 1_000n;
+    unitIndex += 1;
   }
 
-  return `${sign}${normalizedInteger}`;
+  if (unitIndex === 0) {
+    return `${sign}${absoluteBalance}`;
+  }
+
+  let scaled = (absoluteBalance * CREDIT_BALANCE_DECIMAL_SCALE + divisor / 2n) / divisor;
+  if (scaled >= 1_000n * CREDIT_BALANCE_DECIMAL_SCALE && unitIndex < CREDIT_BALANCE_UNITS.length - 1) {
+    divisor *= 1_000n;
+    unitIndex += 1;
+    scaled = (absoluteBalance * CREDIT_BALANCE_DECIMAL_SCALE + divisor / 2n) / divisor;
+  }
+
+  const whole = scaled / CREDIT_BALANCE_DECIMAL_SCALE;
+  const decimals = (scaled % CREDIT_BALANCE_DECIMAL_SCALE)
+    .toString()
+    .padStart(2, '0')
+    .replace(/0+$/, '');
+  return `${sign}${whole}${decimals ? `.${decimals}` : ''}${CREDIT_BALANCE_UNITS[unitIndex]}`;
 }
 
 export function prepareAutoShare(backends: BackendView[]): {

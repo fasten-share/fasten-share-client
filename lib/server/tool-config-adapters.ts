@@ -9,6 +9,7 @@ export function assertSupportedTarget(target: ToolConfigTarget): void {
   if (target.tool === 'opencode' && !['openai', 'openai-response'].includes(target.protocol)) throw new Error('OpenCode can only be configured for the openai or openai-response protocol.');
   if (target.tool === 'claw' && target.protocol === 'azure-openai') throw new Error('OpenClaw Azure configuration is not supported yet.');
   if (target.tool === 'hermes' && ['gemini', 'azure-openai'].includes(target.protocol)) throw new Error(`Hermes ${target.protocol} configuration is not supported yet.`);
+  if (target.tool === 'pi' && !['openai', 'openai-response', 'anthropic', 'gemini', 'ollama'].includes(target.protocol)) throw new Error(`Pi ${target.protocol} configuration is not supported.`);
 }
 
 export function updateToolConfig(raw: string, target: ToolConfigTarget, token: string): string {
@@ -18,6 +19,7 @@ export function updateToolConfig(raw: string, target: ToolConfigTarget, token: s
     case 'opencode': return updateOpenCode(raw, target, token);
     case 'claw': return updateOpenClaw(raw, target, token);
     case 'hermes': return updateHermes(raw, target, token);
+    case 'pi': return updatePi(raw, target, token);
     case 'curl': throw new Error('curl has no writable configuration');
   }
 }
@@ -27,6 +29,7 @@ function object(value: unknown): Record<string, unknown> {
 }
 function openClawApi(protocol: string): string { return protocol === 'openai-response' ? 'openai-responses' : protocol === 'anthropic' ? 'anthropic-messages' : protocol === 'gemini' ? 'google-generative-ai' : 'openai-completions'; }
 function hermesApiMode(protocol: string): string { return protocol === 'openai-response' ? 'codex_responses' : protocol === 'anthropic' ? 'anthropic_messages' : 'chat_completions'; }
+function piApi(protocol: string): string { return protocol === 'openai-response' ? 'openai-responses' : protocol === 'anthropic' ? 'anthropic-messages' : protocol === 'gemini' ? 'google-generative-ai' : 'openai-completions'; }
 
 function updateClaude(raw: string, target: ToolConfigTarget, token: string): string {
   const root = raw.trim() ? object(JSON5.parse(raw)) : {}; const env = object(root.env); delete env.ANTHROPIC_AUTH_TOKEN;
@@ -66,4 +69,16 @@ function updateHermes(raw: string, target: ToolConfigTarget, token: string): str
   root.model = { ...object(root.model), default: target.model, provider: 'custom', base_url: target.baseUrl, api_key: token, api_mode: hermesApiMode(target.protocol) };
   delete root.fallback_model; root.fallback_providers = [];
   return stringifyYaml(root);
+}
+function updatePi(raw: string, target: ToolConfigTarget, token: string): string {
+  const root = raw.trim() ? object(JSON5.parse(raw)) : {};
+  const providers = object(root.providers);
+  providers['fasten-share'] = {
+    baseUrl: target.baseUrl,
+    api: piApi(target.protocol),
+    apiKey: token,
+    models: [{ id: target.model, name: target.model }],
+  };
+  root.providers = providers;
+  return `${JSON.stringify(root, null, 2)}\n`;
 }
