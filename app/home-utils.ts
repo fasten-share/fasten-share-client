@@ -31,12 +31,10 @@ export function formatCreditBalance(balance: string | null | undefined): string 
     return `${sign}${absoluteBalance}`;
   }
 
-  let scaled = (absoluteBalance * CREDIT_BALANCE_DECIMAL_SCALE + divisor / 2n) / divisor;
-  if (scaled >= 1_000n * CREDIT_BALANCE_DECIMAL_SCALE && unitIndex < CREDIT_BALANCE_UNITS.length - 1) {
-    divisor *= 1_000n;
-    unitIndex += 1;
-    scaled = (absoluteBalance * CREDIT_BALANCE_DECIMAL_SCALE + divisor / 2n) / divisor;
-  }
+  // Floor (never round up) so the balance never overstates what the user has,
+  // e.g. 99.997G displays as 99.99G instead of 100G. With flooring the value in
+  // the selected unit is always < 1000, so no carry into the next unit can occur.
+  const scaled = (absoluteBalance * CREDIT_BALANCE_DECIMAL_SCALE) / divisor;
 
   const whole = scaled / CREDIT_BALANCE_DECIMAL_SCALE;
   const decimals = (scaled % CREDIT_BALANCE_DECIMAL_SCALE)

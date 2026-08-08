@@ -26,8 +26,9 @@ describe('formatCreditBalance', () => {
     expect(formatCreditBalance('0.0')).toBe('0');
   });
 
-  it('keeps integer balances unchanged', () => {
-    expect(formatCreditBalance('99900000000')).toBe('99900000000');
+  it('floors balances into compact units without rounding up', () => {
+    expect(formatCreditBalance('99997000000')).toBe('99.99G');
+    expect(formatCreditBalance('99900000000')).toBe('99.9G');
     expect(formatCreditBalance('0')).toBe('0');
   });
 

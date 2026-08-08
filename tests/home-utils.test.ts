@@ -11,12 +11,13 @@ describe('credit balance formatting', () => {
   it('uses compact thousand-based units with at most two decimal places', () => {
     expect(formatCreditBalance('1000')).toBe('1K');
     expect(formatCreditBalance('1200')).toBe('1.2K');
-    expect(formatCreditBalance('12345')).toBe('12.35K');
-    expect(formatCreditBalance('123456789')).toBe('123.46M');
+    expect(formatCreditBalance('12345')).toBe('12.34K');
+    expect(formatCreditBalance('123456789')).toBe('123.45M');
   });
 
-  it('carries rounded values into the next unit', () => {
-    expect(formatCreditBalance('999999')).toBe('1M');
+  it('floors values and never rounds up into the next unit', () => {
+    expect(formatCreditBalance('999999')).toBe('999.99K');
+    expect(formatCreditBalance('99997000000')).toBe('99.99G');
   });
 
   it('supports all units without converting large balances to Number', () => {
@@ -28,7 +29,7 @@ describe('credit balance formatting', () => {
   });
 
   it('preserves the previous normalization and invalid-value behavior', () => {
-    expect(formatCreditBalance('-1234.1')).toBe('-1.24K');
+    expect(formatCreditBalance('-1234.1')).toBe('-1.23K');
     expect(formatCreditBalance('12.9')).toBe('12');
     expect(formatCreditBalance(undefined)).toBe('0');
     expect(formatCreditBalance('not-a-balance')).toBe('0');
