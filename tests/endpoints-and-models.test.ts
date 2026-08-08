@@ -31,7 +31,7 @@ describe('producer form model', () => {
 
   it('normalizes persisted backend values into a card', () => {
     expect(toCard({ id: 'b1', baseUrl: 'https://api', protocol: 'openai', models: ['a', 'b'], apiKey: '', costMultiplier: 0, maxConcurrency: 0, supportedTools: ['codex'], protocolConversions: ['anthropic', 'openai-response'], enabled: undefined })).toMatchObject({
-      id: 'b1', modelsText: 'a, b', costMultiplier: 0.001, maxConcurrency: 5, supportedTools: ['codex'], protocolConversions: ['openai-response'], enabled: true, versionPrefix: '/v1',
+      id: 'b1', modelsText: 'a, b', costMultiplier: 0, maxConcurrency: 5, supportedTools: ['codex'], protocolConversions: ['openai-response'], enabled: true, versionPrefix: '/v1',
     });
   });
 
@@ -60,7 +60,7 @@ describe('producer form model', () => {
     };
     expect(toInput(card)).toEqual({
       id: ' b-1 ', baseUrl: 'https://azure.example', protocol: 'azure-openai', models: ['one', 'two', 'one'],
-      costMultiplier: 999, maxConcurrency: 3, apiKey: undefined, apiVersion: '2025-01-01', enabled: false,
+      costMultiplier: 2000, maxConcurrency: 3, apiKey: undefined, apiVersion: '2025-01-01', enabled: false,
       supportedTools: ['curl', 'hermes'], versionPrefix: '/openai', protocolConversions: [],
     });
   });

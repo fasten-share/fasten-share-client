@@ -250,6 +250,8 @@ export const zh: Record<keyof typeof en, string> = {
   'consumer.ratingAlreadySubmitted': '您本月已经评价过该用户。',
   'consumer.ratingSubmitFailed': '评分提交失败，请重试。',
   'consumer.costMultiplier': '积分消耗倍率',
+  'consumer.freeMultiplier': '免费',
+  'consumer.freeMultiplierHelp': '每次请求最低消费10积分',
   'consumer.creditThresholdNotMet': '积分门槛不足',
   'consumer.creditThresholdRequired': '门槛积分：{credits}',
   'consumer.versionPrefix': '版本号前缀',
@@ -346,7 +348,7 @@ export const zh: Record<keyof typeof en, string> = {
   'producer.exposedModels': '公开的模型（逗号分隔；用于发现）',
   'producer.costMultiplier': '积分消耗倍率',
   'producer.costMultiplierHelp':
-    '积分消耗倍率越高，您通过生产token获得的积分就越高，积分消耗倍率越低，您的token就越容易被尽快使用',
+    '积分消耗倍率越高，您通过生产token获得的积分就越高，积分消耗倍率越低，您的token就越容易被尽快使用。可设为 0；非 0 时范围为 0.000001–999999。',
   'producer.maxConcurrency': '最大并发请求数',
   'producer.supportedTools': '支持的消费者工具',
   'producer.supportedToolsHint': '以下选项按 {protocol} 协议筛选，至少选择一项。Claude 仅支持 anthropic，Codex 仅支持 openai-response，Pi 暂不支持 azure-openai。',

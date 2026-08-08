@@ -328,3 +328,17 @@
   font-size: 11px;
   color: var(--muted);
 }
+
+.helpDot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: help;
+  margin-left: 4px;
+}

@@ -101,7 +101,17 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
                                 ? t('consumer.ratingValue', { rating: node.rating.toFixed(1) })
                                 : t('consumer.noRating')}
                             </span>
-                            <span>{t('consumer.costMultiplier')}: {formatMultiplier(node.costMultiplier)}</span>
+                            <span>
+                              {t('consumer.costMultiplier')}:{' '}
+                              {node.costMultiplier === 0 ? (
+                                <>
+                                  {t('consumer.freeMultiplier')}
+                                  <span className={styles.helpDot} title={t('consumer.freeMultiplierHelp')} aria-label={t('consumer.freeMultiplierHelp')}>?</span>
+                                </>
+                              ) : (
+                                formatMultiplier(node.costMultiplier)
+                              )}
+                            </span>
                             <span>{t('consumer.versionPrefix')}: {node.versionPrefix}</span>
                           </div>
                           <div className={styles.ratingPanel}>

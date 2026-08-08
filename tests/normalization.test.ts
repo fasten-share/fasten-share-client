@@ -26,11 +26,14 @@ describe('numeric configuration normalization', () => {
 
   it('clamps cost multipliers and accepts numeric strings', () => {
     expect(normalizeCostMultiplier('2.5')).toBe(2.5);
-    expect(normalizeCostMultiplier('0.001')).toBe(MIN_COST_MULTIPLIER);
-    expect(normalizeCostMultiplier('0.0009')).toBe(MIN_COST_MULTIPLIER);
-    expect(normalizeCostMultiplier(0)).toBe(MIN_COST_MULTIPLIER);
+    expect(normalizeCostMultiplier('0.001')).toBe(0.001);
+    expect(normalizeCostMultiplier('0.000001')).toBe(MIN_COST_MULTIPLIER);
+    expect(normalizeCostMultiplier('0.0009')).toBe(0.0009);
+    expect(normalizeCostMultiplier(0)).toBe(0);
     expect(normalizeCostMultiplier(-100)).toBe(MIN_COST_MULTIPLIER);
-    expect(normalizeCostMultiplier(1000)).toBe(MAX_COST_MULTIPLIER);
+    expect(normalizeCostMultiplier(1000)).toBe(1000);
+    expect(normalizeCostMultiplier(999999)).toBe(MAX_COST_MULTIPLIER);
+    expect(normalizeCostMultiplier(1_000_000)).toBe(MAX_COST_MULTIPLIER);
     expect(normalizeCostMultiplier('invalid')).toBe(1);
   });
 });

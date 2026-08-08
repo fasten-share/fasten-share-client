@@ -250,6 +250,8 @@ export const en = {
   'consumer.ratingAlreadySubmitted': 'You have already rated this user this month.',
   'consumer.ratingSubmitFailed': 'Failed to submit rating. Please try again.',
   'consumer.costMultiplier': 'Credit cost multiplier',
+  'consumer.freeMultiplier': 'Free',
+  'consumer.freeMultiplierHelp': 'Each request has a minimum charge of 10 credits',
   'consumer.creditThresholdNotMet': 'Credit threshold not met',
   'consumer.creditThresholdRequired': 'Required credits: {credits}',
   'consumer.versionPrefix': 'Version prefix',
@@ -347,7 +349,7 @@ export const en = {
   'producer.exposedModels': 'Exposed models (comma separated; for discovery)',
   'producer.costMultiplier': 'Credit cost multiplier',
   'producer.costMultiplierHelp':
-    'The higher the credit cost multiplier, the more credits you earn for producing tokens. The lower the multiplier, the more likely your tokens are to be used sooner.',
+    'The higher the credit cost multiplier, the more credits you earn for producing tokens. The lower the multiplier, the more likely your tokens are to be used sooner. 0 is allowed; otherwise the range is 0.000001–999999.',
   'producer.maxConcurrency': 'Maximum concurrent requests',
   'producer.supportedTools': 'Supported consumer tools',
   'producer.supportedToolsHint': 'Options are filtered for {protocol}; at least one is required. Claude requires anthropic, Codex requires openai-response, and Pi does not support azure-openai yet.',
