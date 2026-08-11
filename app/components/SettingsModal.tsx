@@ -1,7 +1,9 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import { useI18n } from '@/lib/i18n/context';
 import { LANGS, type Lang } from '@/lib/i18n/dictionary';
+import { EMPTY_STATE, getState, showOnboarding, subscribeToOnboarding } from '@/lib/onboarding';
 import styles from './SettingsModal.module.css';
 
 /**
@@ -15,14 +17,24 @@ export function SettingsModal({
   setLang,
   autoShare,
   setAutoShare,
+  userId = '',
 }: {
   onClose: () => void;
   lang: Lang;
   setLang: (l: Lang) => void;
   autoShare: boolean;
   setAutoShare: (v: boolean) => void | Promise<void>;
+  userId?: string;
 }) {
   const { t } = useI18n();
+
+  // Track dismissal so a user who hit "Don't show again" can bring the
+  // get-started guide back from this menu.
+  const onboarding = useSyncExternalStore(
+    subscribeToOnboarding,
+    () => getState(userId),
+    () => EMPTY_STATE,
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -55,6 +67,19 @@ export function SettingsModal({
           </label>
         </div>
         <div className="hint">{t('settings.autoShareHint')}</div>
+
+        {userId && onboarding.dismissed && (
+          <div className={styles.row}>
+            <label>{t('settings.getStartedGuide')}</label>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => showOnboarding(userId)}
+            >
+              {t('onboarding.showAgain')}
+            </button>
+          </div>
+        )}
 
         <div className="modal-actions">
           <button className="secondary" onClick={onClose}>

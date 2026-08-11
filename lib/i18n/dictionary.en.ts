@@ -163,6 +163,7 @@ export const en = {
 
   // settings
   'settings.title': 'Settings',
+  'settings.getStartedGuide': 'Get started guide',
   'settings.language': 'Language',
   'settings.autoShare': 'Auto-share on load',
   'settings.autoShareHint':
@@ -415,7 +416,10 @@ export const en = {
   'traffic.minutesAgo': '{count}m ago',
   'traffic.hoursAgo': '{count}h ago',
   'onboarding.title': 'Get started',
+  'onboarding.expand': 'Expand',
+  'onboarding.collapse': 'Collapse',
   'onboarding.dismiss': 'Dismiss',
+  'onboarding.showAgain': 'Show get started guide again',
   'onboarding.progress': '{done} of {total} done',
   'onboarding.allDone': 'All set. You are ready to go.',
   'onboarding.consumerTrack': 'Use models',

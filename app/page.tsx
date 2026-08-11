@@ -233,6 +233,7 @@ export default function Home() {
           setLang={setLang}
           autoShare={status?.config.autoShare ?? true}
           setAutoShare={setAutoShare}
+          userId={user?.id ?? ''}
         />
       )}
       {referralOpen && <ReferralModal onClose={() => setReferralOpen(false)} />}

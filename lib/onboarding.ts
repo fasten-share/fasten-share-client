@@ -34,6 +34,8 @@ const ALL_STEPS: readonly OnboardingStep[] = [...CONSUMER_STEPS, ...PRODUCER_STE
 export interface OnboardingState {
   done: OnboardingStep[];
   dismissed: boolean;
+  /** True while the checklist is collapsed and the guidance steps are hidden. */
+  collapsed: boolean;
 }
 
 /** Signals that can be read straight from live state. */
@@ -81,18 +83,26 @@ function isStep(value: unknown): value is OnboardingStep {
 }
 
 export function parseState(raw: string | null): OnboardingState {
-  if (!raw) return { done: [], dismissed: false };
+  if (!raw) return { done: [], dismissed: false, collapsed: true };
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return { done: [], dismissed: false };
-    const { done, dismissed } = parsed as { done?: unknown; dismissed?: unknown };
+    if (typeof parsed !== 'object' || parsed === null) {
+      return { done: [], dismissed: false, collapsed: true };
+    }
+    const { done, dismissed, collapsed } = parsed as {
+      done?: unknown;
+      dismissed?: unknown;
+      collapsed?: unknown;
+    };
     return {
       done: Array.isArray(done) ? done.filter(isStep) : [],
       dismissed: dismissed === true,
+      // Default to collapsed; only an explicit false keeps it expanded.
+      collapsed: collapsed !== false,
     };
   } catch {
     // Corrupt storage must not break the page; start the checklist over.
-    return { done: [], dismissed: false };
+    return { done: [], dismissed: false, collapsed: true };
   }
 }
 
@@ -101,7 +111,11 @@ export function parseState(raw: string | null): OnboardingState {
 const cache = new Map<string, OnboardingState>();
 const listeners = new Set<() => void>();
 
-export const EMPTY_STATE: OnboardingState = Object.freeze({ done: [], dismissed: false });
+export const EMPTY_STATE: OnboardingState = Object.freeze({
+  done: [],
+  dismissed: false,
+  collapsed: true,
+});
 
 export function getState(userId: string): OnboardingState {
   if (!userId || typeof window === 'undefined') return EMPTY_STATE;
@@ -146,6 +160,25 @@ export function dismissOnboarding(userId: string): void {
   const current = getState(userId);
   if (current.dismissed) return;
   commit(userId, { ...current, dismissed: true });
+}
+
+/** Expand or collapse the checklist; the choice persists per user. */
+export function setCollapsed(userId: string, collapsed: boolean): void {
+  if (!userId || typeof window === 'undefined') return;
+  const current = getState(userId);
+  if (current.collapsed === collapsed) return;
+  commit(userId, { ...current, collapsed });
+}
+
+/**
+ * Re-show a dismissed checklist from the settings menu. Expands it too so the
+ * guidance steps are actually visible again.
+ */
+export function showOnboarding(userId: string): void {
+  if (!userId || typeof window === 'undefined') return;
+  const current = getState(userId);
+  if (!current.dismissed && !current.collapsed) return;
+  commit(userId, { ...current, dismissed: false, collapsed: false });
 }
 
 export function subscribeToOnboarding(listener: () => void): () => void {

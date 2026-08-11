@@ -8,7 +8,7 @@ import { useI18n } from '@/lib/i18n/context';
 import type { MessageKey } from '@/lib/i18n/dictionary';
 import {
   CONSUMER_STEPS, PRODUCER_STEPS, derivedSteps, dismissOnboarding, getState,
-  markSteps, subscribeToOnboarding, EMPTY_STATE,
+  markSteps, setCollapsed, subscribeToOnboarding, EMPTY_STATE,
   type OnboardingStep,
 } from '@/lib/onboarding';
 import styles from './OnboardingChecklist.module.css';
@@ -44,6 +44,7 @@ export function OnboardingChecklist({ user, apiKeys, status, onNavigate }: {
     () => getState(userId),
     () => EMPTY_STATE,
   );
+  const collapsed = state.collapsed;
 
   // Observable progress is latched as it appears, so a step stays ticked after
   // its signal goes away (traffic resets, sharing stopped).
@@ -122,16 +123,27 @@ export function OnboardingChecklist({ user, apiKeys, status, onNavigate }: {
         </div>
         <button
           type="button"
+          className={styles.toggle}
+          aria-expanded={!collapsed}
+          aria-controls="onboarding-steps"
+          onClick={() => setCollapsed(userId, !collapsed)}
+        >
+          {collapsed ? t('onboarding.expand') : t('onboarding.collapse')}
+        </button>
+        <button
+          type="button"
           className={styles.dismiss}
           onClick={() => dismissOnboarding(userId)}
         >
           {t('onboarding.dismiss')}
         </button>
       </header>
-      <div className={styles.tracks}>
-        {renderTrack(t('onboarding.consumerTrack'), CONSUMER_STEPS)}
-        {renderTrack(t('onboarding.producerTrack'), PRODUCER_STEPS)}
-      </div>
+      {!collapsed && (
+        <div className={styles.tracks} id="onboarding-steps">
+          {renderTrack(t('onboarding.consumerTrack'), CONSUMER_STEPS)}
+          {renderTrack(t('onboarding.producerTrack'), PRODUCER_STEPS)}
+        </div>
+      )}
     </section>
   );
 }

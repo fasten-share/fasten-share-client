@@ -77,11 +77,46 @@ function goButtons(): HTMLButtonElement[] {
   return Array.from(container.querySelectorAll('li button'));
 }
 
+async function clickButton(text: string): Promise<void> {
+  const button = Array.from(container.querySelectorAll('button'))
+    .find((candidate) => candidate.textContent === text);
+  await act(async () => button?.click());
+}
+
+/** Open the collapsed-by-default checklist so the steps are visible. */
+async function expand(): Promise<void> {
+  await clickButton('Expand');
+}
+
 describe('OnboardingChecklist', () => {
+  it('starts collapsed, hides the steps, and remembers the choice', async () => {
+    const props = { user: user(), apiKeys: [], status: status(), onNavigate: vi.fn() };
+    await render(createElement(OnboardingChecklist, props));
+
+    // Collapsed by default: header and progress only, no guidance steps.
+    expect(container.querySelectorAll('li')).toHaveLength(0);
+    expect(container.textContent).toContain('0 of 8 done');
+    expect(container.textContent).toContain('Expand');
+    expect(container.textContent).not.toContain('Add credits to your account');
+
+    await expand();
+    expect(stepTitles()).toHaveLength(8);
+    expect(container.textContent).toContain('Collapse');
+
+    await clickButton('Collapse');
+    expect(container.querySelectorAll('li')).toHaveLength(0);
+
+    // An explicit expanded choice survives a remount.
+    await expand();
+    await render(createElement(OnboardingChecklist, props));
+    expect(stepTitles()).toHaveLength(8);
+  });
+
   it('lists every step for a fresh account', async () => {
     await render(createElement(OnboardingChecklist, {
       user: user(), apiKeys: [], status: status(), onNavigate: vi.fn(),
     }));
+    await expand();
 
     expect(stepTitles()).toHaveLength(8);
     expect(container.textContent).toContain('0 of 8 done');
@@ -117,6 +152,7 @@ describe('OnboardingChecklist', () => {
     }));
 
     // Six of eight are observable; search and configure are not.
+    await expand();
     expect(container.textContent).toContain('6 of 8 done');
     expect(goButtons()).toHaveLength(2);
   });
@@ -170,6 +206,7 @@ describe('OnboardingChecklist', () => {
     await render(createElement(OnboardingChecklist, {
       user: user(), apiKeys: [], status: status(), onNavigate,
     }));
+    await expand();
 
     await act(async () => goButtons()[0]?.click());
     expect(onNavigate).toHaveBeenCalledWith({ kind: 'recharge' });

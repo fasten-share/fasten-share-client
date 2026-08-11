@@ -10,6 +10,8 @@ import {
   markSteps,
   parseState,
   resetOnboardingCache,
+  setCollapsed,
+  showOnboarding,
   storageKey,
   subscribeToOnboarding,
   type OnboardingSignals,
@@ -96,19 +98,28 @@ describe('derivedSteps', () => {
 });
 
 describe('parseState', () => {
-  it('starts empty for missing storage', () => {
-    expect(parseState(null)).toEqual({ done: [], dismissed: false });
+  it('starts empty and collapsed for missing storage', () => {
+    expect(parseState(null)).toEqual({ done: [], dismissed: false, collapsed: true });
   });
 
   it('survives corrupt storage instead of throwing', () => {
-    expect(parseState('{not json')).toEqual({ done: [], dismissed: false });
-    expect(parseState('"a string"')).toEqual({ done: [], dismissed: false });
-    expect(parseState('null')).toEqual({ done: [], dismissed: false });
+    expect(parseState('{not json')).toEqual({ done: [], dismissed: false, collapsed: true });
+    expect(parseState('"a string"')).toEqual({ done: [], dismissed: false, collapsed: true });
+    expect(parseState('null')).toEqual({ done: [], dismissed: false, collapsed: true });
   });
 
   it('drops unknown step names left by an older build', () => {
     const raw = JSON.stringify({ done: ['consumerApiKey', 'retiredStep'], dismissed: true });
-    expect(parseState(raw)).toEqual({ done: ['consumerApiKey'], dismissed: true });
+    expect(parseState(raw)).toEqual({
+      done: ['consumerApiKey'], dismissed: true, collapsed: true,
+    });
+  });
+
+  it('keeps an explicit expanded choice and defaults otherwise', () => {
+    expect(parseState(JSON.stringify({ done: [], collapsed: false })).collapsed).toBe(false);
+    // Older builds without a collapsed field, or junk values, stay collapsed.
+    expect(parseState(JSON.stringify({ done: [] })).collapsed).toBe(true);
+    expect(parseState(JSON.stringify({ done: [], collapsed: 'yes' })).collapsed).toBe(true);
   });
 });
 
@@ -162,7 +173,61 @@ describe('progress latching', () => {
     markStep('u1', 'consumerApiKey');
     dismissOnboarding('u1');
     resetOnboardingCache();
-    expect(getState('u1')).toEqual({ done: ['consumerApiKey'], dismissed: true });
+    expect(getState('u1')).toEqual({
+      done: ['consumerApiKey'], dismissed: true, collapsed: true,
+    });
+  });
+
+  it('toggles collapsed state and persists the choice', () => {
+    expect(getState('u1').collapsed).toBe(true);
+
+    setCollapsed('u1', false);
+    expect(getState('u1').collapsed).toBe(false);
+    resetOnboardingCache();
+    expect(getState('u1').collapsed).toBe(false);
+
+    setCollapsed('u1', true);
+    expect(getState('u1').collapsed).toBe(true);
+  });
+
+  it('notifies subscribers when the collapse choice changes', () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeToOnboarding(listener);
+
+    setCollapsed('u1', false);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    // Re-setting the same value must be inert.
+    setCollapsed('u1', false);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+  });
+
+  it('re-shows a dismissed checklist and expands it', () => {
+    markStep('u1', 'consumerApiKey');
+    dismissOnboarding('u1');
+    showOnboarding('u1');
+    const state = getState('u1');
+    expect(state.dismissed).toBe(false);
+    expect(state.collapsed).toBe(false);
+    expect(state.done).toEqual(['consumerApiKey']);
+  });
+
+  it('re-show is inert when the checklist is already visible', () => {
+    setCollapsed('u1', false);
+    const listener = vi.fn();
+    const unsubscribe = subscribeToOnboarding(listener);
+    showOnboarding('u1');
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it('ignores collapse and re-show writes for a signed-out user', () => {
+    setCollapsed('', false);
+    showOnboarding('');
+    expect(window.localStorage.length).toBe(0);
+    expect(getState('').collapsed).toBe(true);
   });
 
   it('ignores writes for a signed-out user', () => {

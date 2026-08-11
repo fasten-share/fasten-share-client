@@ -35,6 +35,7 @@
   transition: width 240ms ease;
 }
 
+.toggle,
 .dismiss {
   background: none;
   border: none;
@@ -44,6 +45,7 @@
   padding: 4px 6px;
 }
 
+.toggle:hover,
 .dismiss:hover {
   color: var(--text);
 }

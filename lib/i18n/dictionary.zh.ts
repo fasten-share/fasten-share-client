@@ -165,6 +165,7 @@ export const zh: Record<keyof typeof en, string> = {
 
   // settings
   'settings.title': '设置',
+  'settings.getStartedGuide': '开始使用指南',
   'settings.language': '语言',
   'settings.autoShare': '载入时自动分享',
   'settings.autoShareHint': '开启后，页面载入后会自动开始共享已保存的后端（需通过健康检查）。',
@@ -413,7 +414,10 @@ export const zh: Record<keyof typeof en, string> = {
   'traffic.minutesAgo': '{count} 分钟前',
   'traffic.hoursAgo': '{count} 小时前',
   'onboarding.title': '开始使用',
+  'onboarding.expand': '展开',
+  'onboarding.collapse': '收起',
   'onboarding.dismiss': '不再显示',
+  'onboarding.showAgain': '重新显示开始使用指南',
   'onboarding.progress': '已完成 {done}/{total}',
   'onboarding.allDone': '全部完成，可以开始使用了。',
   'onboarding.consumerTrack': '使用模型',
