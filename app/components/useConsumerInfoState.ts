@@ -1,17 +1,29 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { followUser, loadFollowingUsers, loadRatingStatuses, loadUserSummaries, rateUser, unfollowUser, type ConsumerApiKeyDto, type FollowedUserDto, type RatingStatusDto } from '@/lib/client/auth';
 import type { Status } from '@/lib/control-client';
 import type { DiscoverFn } from '@/lib/client/status-link';
 import { PAGE_SIZE, type ConsumerRow as Row, type SearchScope } from './consumer-utils';
 import { markStep } from '@/lib/onboarding';
+import { suggestModels } from '@/lib/model-suggest';
+import {
+  EMPTY_RECENT, getRecent, clearRecent as clearRecentStore, recordRecent,
+  removeRecent as removeRecentStore, subscribeToRecent, type RecentSearch,
+} from '@/lib/recent-searches';
 import { useConsumerToolConfig } from './useConsumerToolConfig';
 import type { useI18n } from '@/lib/i18n/context';
 import { buildConsumerRows } from './consumer-row-builder';
 import { useToast } from './ToastProvider';
 
 type Translate = ReturnType<typeof useI18n>['t'];
+
+/**
+ * How many nodes to scan when collecting names for a "did you mean". Larger
+ * than a page so the pool is useful, small enough that the one-off request on a
+ * failed search stays cheap.
+ */
+const SUGGEST_SCAN_LIMIT = 50;
 
 export function useConsumerInfoState({ status, discover, currentUserId, apiKeys, selectedApiKeyId, t }: {
   status: Status; discover: DiscoverFn; currentUserId: string; apiKeys: ConsumerApiKeyDto[];
@@ -26,6 +38,7 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
   const [searched, setSearched] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [searchHasMore, setSearchHasMore] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const selectedApiKey =
     apiKeys.find((apiKey) => apiKey.id === selectedApiKeyId && !apiKey.frozen)
     ?? apiKeys.find((apiKey) => !apiKey.frozen)
@@ -47,13 +60,26 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
   const connected = status.signaling.connected;
   const followingPageCount = Math.max(1, Math.ceil(followingTotal / PAGE_SIZE));
 
-  const runSearch = useCallback(async (scope: SearchScope, page = 1, userInitiated = false) => {
+  const recentSearches = useSyncExternalStore(
+    subscribeToRecent,
+    () => getRecent(currentUserId),
+    () => EMPTY_RECENT,
+  );
+
+  const runSearch = useCallback(async (
+    scope: SearchScope,
+    page = 1,
+    userInitiated = false,
+    // Chips search the term they show. Passing it explicitly avoids waiting a
+    // render for the input state to catch up.
+    override?: { keyword: string; protocol: string },
+  ) => {
     const requestId = ++searchRequest.current;
     if (page === 1) searchCursors.current = new Map([[1, undefined]]);
     const cursor = searchCursors.current.get(page);
     if (page > 1 && !cursor) return;
-    const kw = keyword.trim();
-    const proto = protocol.trim();
+    const kw = (override?.keyword ?? keyword).trim();
+    const proto = (override?.protocol ?? protocol).trim();
     setSearching(true);
     // This lookup is only for follow badges in result rows; the visible picker
     // remains paged independently below.
@@ -102,7 +128,37 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     // The onboarding step is about the user choosing to look something up, so
     // the automatic listing on page load deliberately does not count.
     if (userInitiated && currentUserId) markStep(currentUserId, 'consumerSearch');
+    if (userInitiated && currentUserId && scope === 'all') {
+      recordRecent(currentUserId, { keyword: kw, protocol: proto });
+    }
+
+    // Discovery matches names exactly, so a typo yields an empty page with no
+    // clue why. Only then is a second, unfiltered call worth its cost: it is
+    // the one moment the catalogue is needed, and the user is already stuck.
+    if (out.length > 0 || !kw || scope !== 'all') {
+      setSuggestions([]);
+      return;
+    }
+    const catalogue = await discover('', proto, undefined, undefined, SUGGEST_SCAN_LIMIT)
+      .catch(() => ({ candidates: [], nextCursor: null, hasMore: false, limit: SUGGEST_SCAN_LIMIT }));
+    if (requestId !== searchRequest.current) return;
+    setSuggestions(suggestModels(kw, catalogue.candidates.flatMap((candidate) => candidate.models)));
   }, [keyword, protocol, discover, selectedFollowingUserIds, currentUserId]);
+
+  const searchFor = useCallback(async (entry: RecentSearch) => {
+    setSearchScope('all');
+    setKeyword(entry.keyword);
+    setProtocol(entry.protocol);
+    await runSearch('all', 1, true, entry);
+  }, [runSearch]);
+
+  const dropRecent = useCallback((entry: RecentSearch) => {
+    removeRecentStore(currentUserId, entry);
+  }, [currentUserId]);
+
+  const clearRecentSearches = useCallback(() => {
+    clearRecentStore(currentUserId);
+  }, [currentUserId]);
 
   const openFollowingPicker = useCallback(async (page = 1) => {
     ++searchRequest.current;
@@ -284,6 +340,7 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     ratingDrafts, setRatingDrafts, ratingUserIds, connected,
     followingPageCount, runSearch, openFollowingPicker, onEnter,
     toggleExpanded, onToggleKey, onToggleFollow, onRate, toolConfig,
+    suggestions, recentSearches, searchFor, dropRecent, clearRecentSearches,
   };
 }
 

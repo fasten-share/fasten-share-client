@@ -22,7 +22,7 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
   const { searchScope, rows, expanded, searching, searched, searchPage, searchHasMore,
     selectedApiKey, followingUserIds, ratingDrafts, setRatingDrafts, ratingUserIds,
     runSearch, toggleExpanded, onToggleKey,
-    onToggleFollow, onRate, toolConfig } = state;
+    onToggleFollow, onRate, toolConfig, suggestions, searchFor } = state;
   const { copied, curlTarget, setCurlTarget, toolByTarget, setToolByTarget, configuringTarget, configuringTool, pendingInspection, toolConfigStage, toolBackups, restorePreview, toolConfigWorking, toolConfigError, copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig, checkAndConfigureTool, showRestorePreview, restoreBackup } = toolConfig;
   return (
     <div>
@@ -30,15 +30,48 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
       {/* Results stay separate from search controls so each can evolve independently. */}
       <div className="card">
         <h2>{t('consumer.results', { count: rows.length })}</h2>
-        {!searched && <p className="muted">{t('consumer.searchToSee')}</p>}
-        {searched && rows.length === 0 && (
-          <p className="muted">
-            {searchScope === 'following'
-              ? t('consumer.noFollowingMatch')
-              : t('consumer.noMatch')}
-          </p>
+        {/* The skeleton replaces stale rows so results are never read as current. */}
+        {searching && <ResultsSkeleton />}
+        {!searching && !searched && <p className="muted">{t('consumer.searchToSee')}</p>}
+        {!searching && searched && rows.length === 0 && (
+          <div className={styles.emptyResults}>
+            <p className="muted">
+              {searchScope === 'following'
+                ? t('consumer.noFollowingMatch')
+                : t('consumer.noMatch')}
+            </p>
+            {searchScope === 'all' && suggestions.length > 0 && (
+              <div className={styles.suggestions}>
+                <span>{t('consumer.didYouMean')}</span>
+                {suggestions.map((model) => (
+                  <button
+                    type="button"
+                    className={styles.suggestionChip}
+                    key={model}
+                    onClick={() => void searchFor({ keyword: model, protocol: '' })}
+                  >
+                    {model}
+                  </button>
+                ))}
+              </div>
+            )}
+            {searchScope === 'all' && (
+              <>
+                <p className="muted">{t('consumer.noMatchSuggestion')}</p>
+                <div className="actions">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => void searchFor({ keyword: '', protocol: '' })}
+                  >
+                    {t('consumer.browseAll')}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
-        {rows.map((r) => {
+        {!searching && rows.map((r) => {
           const key = rowKey(r);
           const open = expanded.has(key);
           return (
@@ -236,7 +269,7 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
             </div>
           );
         })}
-        {searched && (rows.length > 0 || searchPage > 1) && (
+        {!searching && searched && (rows.length > 0 || searchPage > 1) && (
           <div className={styles.pagination}>
             <button
               type="button"
@@ -270,6 +303,22 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
       {configuringTarget && configuringTool && pendingInspection && (
         <ToolConfigModal target={configuringTarget} tool={configuringTool} origin={origin} apiKey={selectedApiKey} inspection={pendingInspection} stage={toolConfigStage} backups={toolBackups} restorePreview={restorePreview} working={toolConfigWorking} t={t} onClose={closeToolConfigPreview} onClean={() => void cleanToolConfig(configuringTool)} onCheckAndConfigure={() => void checkAndConfigureTool(configuringTarget, configuringTool)} onPreviewRestore={(id) => void showRestorePreview(configuringTool, id)} onRestore={(id) => void restoreBackup(configuringTool, id)} />
       )}
+    </div>
+  );
+}
+
+/** Placeholder rows sized like real results, so the panel does not jump. */
+function ResultsSkeleton() {
+  const { t } = useI18n();
+  return (
+    <div className={styles.skeleton} aria-busy="true" aria-live="polite">
+      <span className={styles.srOnly}>{t('consumer.loadingResults')}</span>
+      {[0, 1, 2].map((row) => (
+        <div className={styles.skeletonRow} key={row} aria-hidden="true">
+          <span className={styles.skeletonBadge} />
+          <span className={styles.skeletonText} />
+        </div>
+      ))}
     </div>
   );
 }

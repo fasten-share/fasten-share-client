@@ -1,4 +1,5 @@
 import type { ConsumerApiKeyDto } from '@/lib/client/auth';
+import type { RecentSearch } from '@/lib/recent-searches';
 import { useI18n } from '@/lib/i18n/context';
 import type { ConsumerInfoState } from './useConsumerInfoState';
 import styles from './ConsumerInfo.module.css';
@@ -10,7 +11,8 @@ export function ConsumerSearchPanel({ state, apiKeys, apiKeysLoading, apiKeysErr
   const { searchScope, setSearchScope, keyword, setKeyword, protocol, setProtocol,
     searching, selectedFollowingUserIds, setSelectedFollowingUserIds, followedUsers,
     followedRatings, followingPage, followingTotal, followingPageCount,
-    connected, runSearch, openFollowingPicker, onEnter } = state;
+    connected, runSearch, openFollowingPicker, onEnter,
+    recentSearches, searchFor, dropRecent, clearRecentSearches } = state;
   return (
     <div className="card">
       <h2>{t('consumer.findModel')}</h2>
@@ -30,7 +32,27 @@ export function ConsumerSearchPanel({ state, apiKeys, apiKeysLoading, apiKeysErr
               {['openai', 'openai-response', 'gemini', 'anthropic', 'azure-openai', 'ollama'].map((value) => <option value={value} key={value}>{value}</option>)}
             </select></div>
           </div>
-          <div className="actions"><button onClick={() => void runSearch('all', 1, true)} disabled={!connected || searching}>{searching ? t('consumer.searching') : t('consumer.search')}</button></div>
+          <div className="hint">{t('consumer.exactMatchHint')}</div>
+          <RecentSearches
+            entries={recentSearches}
+            busy={searching}
+            onPick={(entry) => void searchFor(entry)}
+            onRemove={dropRecent}
+            onClear={clearRecentSearches}
+          />
+          <div className="actions">
+            <button onClick={() => void runSearch('all', 1, true)} disabled={!connected || searching}>
+              {searching ? t('consumer.searching') : t('consumer.search')}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={!connected || searching}
+              onClick={() => void searchFor({ keyword: '', protocol: '' })}
+            >
+              {t('consumer.browseAll')}
+            </button>
+          </div>
         </>
       ) : (
         <div className={styles.followingPicker}>
@@ -63,6 +85,49 @@ export function ConsumerSearchPanel({ state, apiKeys, apiKeysLoading, apiKeysErr
       {apiKeysLoading && <div className="hint">{t('apiKeys.loading')}</div>}
       {!apiKeysLoading && apiKeys.length === 0 && <div className="hint">{t('consumer.noApiKeys')}</div>}
       {apiKeysError && <div className="hint err">{apiKeysError}</div>}
+    </div>
+  );
+}
+
+function RecentSearches({ entries, busy, onPick, onRemove, onClear }: {
+  entries: readonly RecentSearch[];
+  busy: boolean;
+  onPick: (entry: RecentSearch) => void;
+  onRemove: (entry: RecentSearch) => void;
+  onClear: () => void;
+}) {
+  const { t } = useI18n();
+  if (entries.length === 0) return null;
+  return (
+    <div className={styles.recent}>
+      <span className={styles.recentLabel}>{t('consumer.recentSearches')}</span>
+      <div className={styles.recentChips}>
+        {entries.map((entry) => (
+          <span className={styles.recentChip} key={`${entry.protocol}|${entry.keyword}`}>
+            <button
+              type="button"
+              className={styles.recentChipMain}
+              disabled={busy}
+              onClick={() => onPick(entry)}
+              title={entry.protocol || t('consumer.recentAny')}
+            >
+              {entry.keyword}
+              {entry.protocol ? <span className={styles.recentProtocol}>{entry.protocol}</span> : null}
+            </button>
+            <button
+              type="button"
+              className={styles.recentChipRemove}
+              aria-label={t('consumer.removeRecent')}
+              onClick={() => onRemove(entry)}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <button type="button" className={styles.recentClear} onClick={onClear}>
+        {t('consumer.clearRecent')}
+      </button>
     </div>
   );
 }

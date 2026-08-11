@@ -342,3 +342,173 @@
   cursor: help;
   margin-left: 4px;
 }
+
+.emptyResults {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.suggestionChip {
+  padding: 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: rgba(79, 140, 255, 0.14);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.suggestionChip:hover {
+  background: rgba(79, 140, 255, 0.26);
+}
+
+.recent {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.recentLabel {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.recentChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recentChip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.recentChipMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 10px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.recentChipMain:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.recentProtocol {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.recentChipRemove {
+  padding: 3px 8px 3px 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recentChipRemove:hover {
+  color: var(--danger);
+}
+
+.recentClear {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.recentClear:hover {
+  color: var(--text);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeletonRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.skeletonBadge,
+.skeletonText {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--border) 25%,
+    var(--scrollbar-thumb) 37%,
+    var(--border) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeletonShimmer 1.4s ease infinite;
+}
+
+.skeletonBadge {
+  width: 64px;
+  flex: none;
+}
+
+.skeletonText {
+  flex: 1;
+  max-width: 320px;
+}
+
+@keyframes skeletonShimmer {
+  from { background-position: 100% 50%; }
+  to { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonBadge,
+  .skeletonText {
+    animation: none;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
