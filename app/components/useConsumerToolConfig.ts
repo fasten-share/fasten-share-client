@@ -10,11 +10,14 @@ import {
 import type { ToolId } from '@/lib/tool-support';
 import type { useI18n } from '@/lib/i18n/context';
 import type { CurlTarget } from './consumer-utils';
+import { markStep } from '@/lib/onboarding';
 import { useToast } from './ToastProvider';
 
 type Translate = ReturnType<typeof useI18n>['t'];
 
-export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, t: Translate) {
+export function useConsumerToolConfig(
+  selectedApiKey: ConsumerApiKeyDto | null, t: Translate, currentUserId = '',
+) {
   // Outcomes are announced rather than rendered inline: the tool-config modal
   // sits above the page, so a message printed underneath it went unseen.
   const { showToast } = useToast();
@@ -47,6 +50,8 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
     if (!selectedApiKey) return;
     if (tool === 'curl') {
       setCurlTarget(target);
+      // Reaching the curl command is as far as this tool goes; that counts.
+      if (currentUserId) markStep(currentUserId, 'consumerConfigure');
       return;
     }
     setToolConfigError('');
@@ -147,6 +152,7 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
         }),
         { tone: 'success' },
       );
+      if (currentUserId) markStep(currentUserId, 'consumerConfigure');
       setPendingInspection(null);
       setConfiguringTarget(null);
       setConfiguringTool(null);

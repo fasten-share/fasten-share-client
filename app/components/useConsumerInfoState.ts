@@ -5,6 +5,7 @@ import { followUser, loadFollowingUsers, loadRatingStatuses, loadUserSummaries, 
 import type { Status } from '@/lib/control-client';
 import type { DiscoverFn } from '@/lib/client/status-link';
 import { PAGE_SIZE, type ConsumerRow as Row, type SearchScope } from './consumer-utils';
+import { markStep } from '@/lib/onboarding';
 import { useConsumerToolConfig } from './useConsumerToolConfig';
 import type { useI18n } from '@/lib/i18n/context';
 import { buildConsumerRows } from './consumer-row-builder';
@@ -29,7 +30,7 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     apiKeys.find((apiKey) => apiKey.id === selectedApiKeyId && !apiKey.frozen)
     ?? apiKeys.find((apiKey) => !apiKey.frozen)
     ?? null;
-  const toolConfig = useConsumerToolConfig(selectedApiKey, t);
+  const toolConfig = useConsumerToolConfig(selectedApiKey, t, currentUserId);
   const { showToast } = useToast();
   const { curlTarget, setCurlTarget, pendingInspection, closeToolConfigPreview } = toolConfig;
   const [followingUserIds, setFollowingUserIds] = useState<Set<string>>(new Set());
@@ -46,7 +47,7 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
   const connected = status.signaling.connected;
   const followingPageCount = Math.max(1, Math.ceil(followingTotal / PAGE_SIZE));
 
-  const runSearch = useCallback(async (scope: SearchScope, page = 1) => {
+  const runSearch = useCallback(async (scope: SearchScope, page = 1, userInitiated = false) => {
     const requestId = ++searchRequest.current;
     if (page === 1) searchCursors.current = new Map([[1, undefined]]);
     const cursor = searchCursors.current.get(page);
@@ -98,7 +99,10 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     });
     setSearching(false);
     setSearched(true);
-  }, [keyword, protocol, discover, selectedFollowingUserIds]);
+    // The onboarding step is about the user choosing to look something up, so
+    // the automatic listing on page load deliberately does not count.
+    if (userInitiated && currentUserId) markStep(currentUserId, 'consumerSearch');
+  }, [keyword, protocol, discover, selectedFollowingUserIds, currentUserId]);
 
   const openFollowingPicker = useCallback(async (page = 1) => {
     ++searchRequest.current;
@@ -130,7 +134,7 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
   }, [connected, runSearch]);
 
   function onEnter(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') void runSearch(searchScope);
+    if (e.key === 'Enter') void runSearch(searchScope, 1, true);
   }
 
   function toggleExpanded(key: string) {

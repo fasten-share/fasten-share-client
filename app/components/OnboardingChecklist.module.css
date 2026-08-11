@@ -1,0 +1,133 @@
+.panel {
+  margin-bottom: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.progress {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bar {
+  flex: 1;
+  min-width: 120px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent-2);
+  transition: width 240ms ease;
+}
+
+.dismiss {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.dismiss:hover {
+  color: var(--text);
+}
+
+.tracks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.trackTitle {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step,
+.stepDone {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+
+.stepDone {
+  opacity: 0.6;
+}
+
+.mark {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.stepDone .mark {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+.stepText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stepTitle {
+  font-size: 13px;
+}
+
+.stepDone .stepTitle {
+  text-decoration: line-through;
+}
+
+.stepHint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.goButton {
+  flex: none;
+  align-self: center;
+  padding: 3px 10px;
+  font-size: 12px;
+}

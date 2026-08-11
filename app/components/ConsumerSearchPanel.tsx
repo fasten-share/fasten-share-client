@@ -30,7 +30,7 @@ export function ConsumerSearchPanel({ state, apiKeys, apiKeysLoading, apiKeysErr
               {['openai', 'openai-response', 'gemini', 'anthropic', 'azure-openai', 'ollama'].map((value) => <option value={value} key={value}>{value}</option>)}
             </select></div>
           </div>
-          <div className="actions"><button onClick={() => void runSearch('all', 1)} disabled={!connected || searching}>{searching ? t('consumer.searching') : t('consumer.search')}</button></div>
+          <div className="actions"><button onClick={() => void runSearch('all', 1, true)} disabled={!connected || searching}>{searching ? t('consumer.searching') : t('consumer.search')}</button></div>
         </>
       ) : (
         <div className={styles.followingPicker}>
@@ -56,7 +56,7 @@ export function ConsumerSearchPanel({ state, apiKeys, apiKeysLoading, apiKeysErr
             ))}</div>
           )}
           {followingTotal > 0 && <Pagination page={followingPage} pages={followingPageCount} total={followingTotal} busy={searching} onPage={openFollowingPicker} />}
-          <div className="actions"><button onClick={() => void runSearch('following', 1)} disabled={!connected || searching || selectedFollowingUserIds.length === 0}>{searching ? t('consumer.searching') : t('consumer.search')}</button></div>
+          <div className="actions"><button onClick={() => void runSearch('following', 1, true)} disabled={!connected || searching || selectedFollowingUserIds.length === 0}>{searching ? t('consumer.searching') : t('consumer.search')}</button></div>
         </div>
       )}
       {!connected && <div className="hint">{t('common.waitingSignaling')}</div>}

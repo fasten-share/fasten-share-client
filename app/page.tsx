@@ -12,6 +12,7 @@ import { ReferralModal } from './components/ReferralModal';
 import { WithdrawalModal } from './components/WithdrawalModal';
 import { SettingsModal } from './components/SettingsModal';
 import { MessageBox } from './components/MessageBox';
+import { OnboardingChecklist, type OnboardingTarget } from './components/OnboardingChecklist';
 import { useI18n } from '@/lib/i18n/context';
 import { formatCreditBalance } from './home-utils';
 import { useHomeProducer } from './hooks/useHomeProducer';
@@ -62,6 +63,12 @@ export default function Home() {
   }, [closeAccountMenu]);
 
   const connected = status?.signaling.connected ?? false;
+
+  const onOnboardingNavigate = useCallback((target: OnboardingTarget) => {
+    if (target.kind === 'recharge') setRechargeOpen(true);
+    else if (target.kind === 'apiKeys') setApiKeysOpen(true);
+    else setTab(target.tab);
+  }, [setTab]);
 
   return (
     <div className={styles.app}>
@@ -174,6 +181,12 @@ export default function Home() {
 
       <div className={styles.body}>
         <div className={styles.content}>
+          <OnboardingChecklist
+            user={user}
+            apiKeys={apiKeys}
+            status={status}
+            onNavigate={onOnboardingNavigate}
+          />
           {!status ? (
             <div className="card">
               <p className="muted">{t('app.connecting')}</p>
