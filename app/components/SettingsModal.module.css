@@ -1,14 +1,37 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .row {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
 }
 
 .row label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  margin: 0;
+}
+
+/* The global input rule sets width:100% and padding on every input, which
+   stretches the auto-share checkbox into a big box and squashes its label
+   text. Restore the native compact checkbox inside settings rows. */
+.row input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  flex-shrink: 0;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .languageSwitch {
@@ -30,4 +53,14 @@
 .languageSwitch button.active {
   background: var(--accent);
   color: #fff;
+}
+
+.guideButton {
+  padding: 3px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
 }
