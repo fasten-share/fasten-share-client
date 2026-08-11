@@ -392,6 +392,7 @@ export const en = {
   // Live traffic, onboarding, search help, and reviews.
   'traffic.title': 'Live requests',
   'traffic.subtitle': 'Requests your backends have served, updated as they finish.',
+  'traffic.latest': 'Showing the latest {count} requests',
   'traffic.empty': 'No requests yet. Once consumers call your models they appear here.',
   'traffic.emptyOffline': 'Start sharing a backend to begin serving requests.',
   'traffic.requests': 'Requests',

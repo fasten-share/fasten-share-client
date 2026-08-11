@@ -12,6 +12,7 @@ import {
 } from './traffic-format';
 import { TrafficSparkline } from './TrafficSparkline';
 import styles from './ProducerTrafficPanel.module.css';
+import { MAX_SAMPLES } from '@/lib/server/producer-traffic';
 
 /** Relative timestamps only need coarse refreshes; the feed itself is pushed. */
 const CLOCK_INTERVAL_MS = 15_000;
@@ -60,7 +61,9 @@ export function ProducerTrafficPanel({ status }: { status: Status }) {
       {traffic.recent.length === 0 ? (
         <p className="muted">{sharing ? t('traffic.empty') : t('traffic.emptyOffline')}</p>
       ) : (
-        <div className={styles.tableWrap}>
+        <>
+          <p className="muted">{t('traffic.latest', { count: MAX_SAMPLES })}</p>
+          <div className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
@@ -96,7 +99,8 @@ export function ProducerTrafficPanel({ status }: { status: Status }) {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

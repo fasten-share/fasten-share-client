@@ -390,6 +390,7 @@ export const zh: Record<keyof typeof en, string> = {
   // 实时流量、新手引导、搜索辅助与评价。
   'traffic.title': '实时请求',
   'traffic.subtitle': '你的后端已处理的请求，完成后立即刷新。',
+  'traffic.latest': '仅显示最近 {count} 条请求',
   'traffic.empty': '还没有请求。消费者调用你的模型后会显示在这里。',
   'traffic.emptyOffline': '开始共享一个后端即可开始接单。',
   'traffic.requests': '请求数',
