@@ -192,6 +192,12 @@
   padding-left: 12px;
 }
 
+/* Clear divider between different nodes so boundaries never blur together. */
+.nodeRow + .nodeRow {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
 .nodeActions {
   display: flex;
   gap: 8px;
