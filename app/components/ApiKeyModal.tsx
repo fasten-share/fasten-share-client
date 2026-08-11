@@ -10,7 +10,7 @@ import {
 } from '@/lib/client/auth';
 import { useI18n } from '@/lib/i18n/context';
 import styles from './ApiKeyModal.module.css';
-import { useConfirmDialog } from './ConfirmDialogProvider';
+import { useAsyncAction } from './useAsyncAction';
 
 export function ApiKeyModal({
   apiKeys,
@@ -22,67 +22,83 @@ export function ApiKeyModal({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const { confirmAction } = useConfirmDialog();
   const [name, setName] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [deletingId, setDeletingId] = useState('');
-  const [freezingId, setFreezingId] = useState('');
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
   const [copiedId, setCopiedId] = useState('');
-  const [error, setError] = useState('');
+
+  // Creation errors stay inline next to the name field the user must fix;
+  // the row actions announce themselves instead, since their rows may scroll.
+  const create = useAsyncAction(
+    async () => createConsumerApiKey(name),
+    {
+      failure: t('apiKeys.createFailed'),
+      inlineErrors: true,
+      success: () => t('apiKeys.created', { name: name.trim() }),
+      onSuccess: (created) => {
+        onChange([...apiKeys, created]);
+        setName('');
+      },
+    },
+  );
+
+  const remove = useAsyncAction(
+    async (apiKey: ConsumerApiKeyDto) => {
+      await deleteConsumerApiKey(apiKey.id);
+      return apiKey;
+    },
+    {
+      confirm: (apiKey) => ({
+        message: t('apiKeys.deleteConfirm', { name: apiKey.name }),
+        confirmLabel: t('apiKeys.delete'),
+        tone: 'danger',
+      }),
+      failure: t('apiKeys.deleteFailed'),
+      success: (apiKey) => t('apiKeys.deleted', { name: apiKey.name }),
+      onSuccess: (apiKey) => onChange(apiKeys.filter((item) => item.id !== apiKey.id)),
+    },
+  );
+
+  const toggleFreeze = useAsyncAction(
+    async (apiKey: ConsumerApiKeyDto) => (apiKey.frozen
+      ? unfreezeConsumerApiKey(apiKey.id)
+      : freezeConsumerApiKey(apiKey.id)),
+    {
+      // Only freezing is disruptive; unfreezing is trivially reversible.
+      confirm: (apiKey) => (apiKey.frozen ? undefined : {
+        message: t('apiKeys.freezeConfirm', { name: apiKey.name }),
+        confirmLabel: t('apiKeys.freeze'),
+        tone: 'warning' as const,
+      }),
+      failure: t('apiKeys.freezeFailed'),
+      success: (apiKey) => (apiKey.frozen
+        ? t('apiKeys.unfrozenOk', { name: apiKey.name })
+        : t('apiKeys.frozenOk', { name: apiKey.name })),
+      onSuccess: (updated) =>
+        onChange(apiKeys.map((item) => (item.id === updated.id ? updated : item))),
+    },
+  );
+
+  const [deletingId, setDeletingId] = useState('');
+  const [freezingId, setFreezingId] = useState('');
 
   async function onCreate(): Promise<void> {
-    if (!name.trim() || creating || apiKeys.length >= 5) return;
-    setCreating(true);
-    setError('');
-    try {
-      const created = await createConsumerApiKey(name);
-      onChange([...apiKeys, created]);
-      setName('');
-    } catch (err) {
-      setError((err as Error).message || t('apiKeys.createFailed'));
-    } finally {
-      setCreating(false);
-    }
+    if (!name.trim() || create.pending || apiKeys.length >= 5) return;
+    await create.run();
   }
 
   async function onDelete(apiKey: ConsumerApiKeyDto): Promise<void> {
-    const confirmed = await confirmAction({
-      message: t('apiKeys.deleteConfirm', { name: apiKey.name }),
-      confirmLabel: t('apiKeys.delete'),
-      tone: 'danger',
-    });
-    if (!confirmed) return;
     setDeletingId(apiKey.id);
-    setError('');
     try {
-      await deleteConsumerApiKey(apiKey.id);
-      onChange(apiKeys.filter((item) => item.id !== apiKey.id));
-    } catch (err) {
-      setError((err as Error).message || t('apiKeys.deleteFailed'));
+      await remove.run(apiKey);
     } finally {
       setDeletingId('');
     }
   }
 
   async function onToggleFreeze(apiKey: ConsumerApiKeyDto): Promise<void> {
-    if (!apiKey.frozen) {
-      const confirmed = await confirmAction({
-        message: t('apiKeys.freezeConfirm', { name: apiKey.name }),
-        confirmLabel: t('apiKeys.freeze'),
-        tone: 'warning',
-      });
-      if (!confirmed) return;
-    }
     setFreezingId(apiKey.id);
-    setError('');
     try {
-      const updated = apiKey.frozen
-        ? await unfreezeConsumerApiKey(apiKey.id)
-        : await freezeConsumerApiKey(apiKey.id);
-      onChange(apiKeys.map((item) => (item.id === updated.id ? updated : item)));
-    } catch (err) {
-      setError((err as Error).message || t('apiKeys.freezeFailed'));
+      await toggleFreeze.run(apiKey);
     } finally {
       setFreezingId('');
     }
@@ -132,10 +148,10 @@ export function ApiKeyModal({
           </label>
           <button
             type="button"
-            disabled={!name.trim() || creating || apiKeys.length >= 5}
+            disabled={!name.trim() || create.pending || apiKeys.length >= 5}
             onClick={() => void onCreate()}
           >
-            {creating ? t('apiKeys.creating') : t('apiKeys.create')}
+            {create.pending ? t('apiKeys.creating') : t('apiKeys.create')}
           </button>
         </div>
 
@@ -143,7 +159,7 @@ export function ApiKeyModal({
           {t('apiKeys.count', { count: apiKeys.length })}
           {apiKeys.length >= 5 ? ` · ${t('apiKeys.limitReached')}` : ''}
         </div>
-        {error ? <div className="hint err">{error}</div> : null}
+        {create.error ? <div className="hint err" role="alert">{create.error}</div> : null}
 
         <div className={styles.keyList}>
           {apiKeys.length === 0 ? (

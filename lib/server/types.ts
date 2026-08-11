@@ -59,8 +59,44 @@ export interface BackendStatus {
   lastHealth?: { ok: boolean; reason?: string; at: number };
 }
 
+/** One served inference request, as shown in the live producer feed. */
+export interface RequestSample {
+  requestId: string;
+  backendId: string;
+  protocol: Protocol;
+  model: string;
+  /** Wall-clock finish time (ms since epoch). */
+  at: number;
+  /** End-to-end duration in ms. */
+  durationMs: number;
+  /** Response bytes streamed back to the consumer. */
+  bytes: number;
+  ok: boolean;
+  /** Present when `ok` is false. */
+  reason?: 'AUTH' | 'QUOTA' | 'HTTP' | 'NETWORK' | 'CANCELLED';
+  /** HTTP status returned by the upstream, when one was received. */
+  status?: number;
+}
+
+/** Per-minute rollup backing the producer sparkline. */
+export interface TrafficBucket {
+  /** Unix minute index (epoch ms / 60000). */
+  minute: number;
+  success: number;
+  failure: number;
+  bytes: number;
+}
+
+export interface ProducerTraffic {
+  /** Newest first, capped. */
+  recent: RequestSample[];
+  buckets: TrafficBucket[];
+  totals: { success: number; failure: number; bytes: number; since: number };
+}
+
 export interface ProducerStatus {
   running: boolean;
   registered: boolean;
   backends: BackendStatus[];
+  traffic: ProducerTraffic;
 }

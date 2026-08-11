@@ -93,6 +93,12 @@ export function startStatusLink(
       if (cmd.userId === status.userId) window.dispatchEvent(new CustomEvent('fs:forced-logout', { detail: cmd.code }));
       return;
     }
+    if (cmd.t === 'backendDown') {
+      if (cmd.userId === status.userId) {
+        window.dispatchEvent(new CustomEvent('fs:backend-down', { detail: cmd.reason }));
+      }
+      return;
+    }
     if (cmd.t !== 'status') return; // config/register/etc. don't apply to a passive page
     if (cmd.userId !== status.userId) return;
     if (cmd.configRevision !== status.configRevision) {

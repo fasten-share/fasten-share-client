@@ -8,6 +8,7 @@ import { PAGE_SIZE, type ConsumerRow as Row, type SearchScope } from './consumer
 import { useConsumerToolConfig } from './useConsumerToolConfig';
 import type { useI18n } from '@/lib/i18n/context';
 import { buildConsumerRows } from './consumer-row-builder';
+import { useToast } from './ToastProvider';
 
 type Translate = ReturnType<typeof useI18n>['t'];
 
@@ -29,6 +30,7 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     ?? apiKeys.find((apiKey) => !apiKey.frozen)
     ?? null;
   const toolConfig = useConsumerToolConfig(selectedApiKey, t);
+  const { showToast } = useToast();
   const { curlTarget, setCurlTarget, pendingInspection, closeToolConfigPreview } = toolConfig;
   const [followingUserIds, setFollowingUserIds] = useState<Set<string>>(new Set());
   const [followedUsers, setFollowedUsers] = useState<FollowedUserDto[]>([]);
@@ -36,10 +38,8 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
   const [selectedFollowingUserIds, setSelectedFollowingUserIds] = useState<string[]>([]);
   const [followingPage, setFollowingPage] = useState(1);
   const [followingTotal, setFollowingTotal] = useState(0);
-  const [followError, setFollowError] = useState('');
   const [ratingDrafts, setRatingDrafts] = useState<Record<string, number>>({});
   const [ratingUserIds, setRatingUserIds] = useState<Set<string>>(new Set());
-  const [ratingError, setRatingError] = useState('');
   const searchRequest = useRef(0);
   const searchCursors = useRef<Map<number, string | undefined>>(new Map([[1, undefined]]));
 
@@ -151,7 +151,6 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
   async function onToggleFollow(publisherUserId: string, following: boolean) {
     if (publisherUserId === currentUserId || followingUserIds.has(publisherUserId)) return;
 
-    setFollowError('');
     setFollowingUserIds((cur) => new Set(cur).add(publisherUserId));
     try {
       const status = following ? await unfollowUser(publisherUserId) : await followUser(publisherUserId);
@@ -186,8 +185,9 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
         typeof error === 'object' && error !== null && 'status' in error
           ? Number(error.status)
           : 0;
-      setFollowError(
+      showToast(
         status === 409 ? t('consumer.followLimitReached') : t('consumer.followUpdateFailed'),
+        { tone: 'error' },
       );
       // Keep the existing row state; users can retry without interrupting curl.
     } finally {
@@ -233,10 +233,10 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     const rating = ratingDrafts[publisherUserId];
     if (!rating || ratingUserIds.has(publisherUserId)) return;
 
-    setRatingError('');
     setRatingUserIds((current) => new Set(current).add(publisherUserId));
     try {
       applyRatingStatus(await rateUser(publisherUserId, rating));
+      showToast(t('consumer.ratingSaved'), { tone: 'success' });
     } catch (error) {
       const statusCode =
         typeof error === 'object' && error !== null && 'status' in error
@@ -247,9 +247,9 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
           .catch(() => new Map<string, RatingStatusDto>());
         const currentStatus = current.get(publisherUserId);
         if (currentStatus) applyRatingStatus(currentStatus);
-        setRatingError(t('consumer.ratingAlreadySubmitted'));
+        showToast(t('consumer.ratingAlreadySubmitted'), { tone: 'warning' });
       } else {
-        setRatingError(t('consumer.ratingSubmitFailed'));
+        showToast(t('consumer.ratingSubmitFailed'), { tone: 'error' });
       }
     } finally {
       setRatingUserIds((current) => {
@@ -276,8 +276,8 @@ export function useConsumerInfoState({ status, discover, currentUserId, apiKeys,
     searchScope, setSearchScope, keyword, setKeyword, protocol, setProtocol, rows,
     expanded, searching, searched, searchPage, searchHasMore, selectedApiKey,
     followingUserIds, followedUsers, followedRatings, selectedFollowingUserIds,
-    setSelectedFollowingUserIds, followingPage, followingTotal, followError,
-    ratingDrafts, setRatingDrafts, ratingUserIds, ratingError, setRatingError, connected,
+    setSelectedFollowingUserIds, followingPage, followingTotal,
+    ratingDrafts, setRatingDrafts, ratingUserIds, connected,
     followingPageCount, runSearch, openFollowingPicker, onEnter,
     toggleExpanded, onToggleKey, onToggleFollow, onRate, toolConfig,
   };

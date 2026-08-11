@@ -9,8 +9,8 @@ export function ConsumerSearchPanel({ state, apiKeys, apiKeysLoading, apiKeysErr
   const { t } = useI18n();
   const { searchScope, setSearchScope, keyword, setKeyword, protocol, setProtocol,
     searching, selectedFollowingUserIds, setSelectedFollowingUserIds, followedUsers,
-    followedRatings, followingPage, followingTotal, followingPageCount, followError,
-    ratingError, connected, runSearch, openFollowingPicker, onEnter } = state;
+    followedRatings, followingPage, followingTotal, followingPageCount,
+    connected, runSearch, openFollowingPicker, onEnter } = state;
   return (
     <div className="card">
       <h2>{t('consumer.findModel')}</h2>
@@ -63,8 +63,6 @@ export function ConsumerSearchPanel({ state, apiKeys, apiKeysLoading, apiKeysErr
       {apiKeysLoading && <div className="hint">{t('apiKeys.loading')}</div>}
       {!apiKeysLoading && apiKeys.length === 0 && <div className="hint">{t('consumer.noApiKeys')}</div>}
       {apiKeysError && <div className="hint err">{apiKeysError}</div>}
-      {followError && <div className="hint err">{followError}</div>}
-      {ratingError && <div className="hint err">{ratingError}</div>}
     </div>
   );
 }

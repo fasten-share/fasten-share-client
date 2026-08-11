@@ -21,9 +21,9 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
   const state = useConsumerInfoState({ status, discover, currentUserId, apiKeys, selectedApiKeyId, t });
   const { searchScope, rows, expanded, searching, searched, searchPage, searchHasMore,
     selectedApiKey, followingUserIds, ratingDrafts, setRatingDrafts, ratingUserIds,
-    setRatingError, runSearch, toggleExpanded, onToggleKey,
+    runSearch, toggleExpanded, onToggleKey,
     onToggleFollow, onRate, toolConfig } = state;
-  const { copied, curlTarget, setCurlTarget, toolByTarget, setToolByTarget, configuringTarget, configuringTool, pendingInspection, toolConfigStage, toolBackups, restorePreview, toolConfigWorking, toolConfigMessage, toolConfigError, copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig, checkAndConfigureTool, showRestorePreview, restoreBackup } = toolConfig;
+  const { copied, curlTarget, setCurlTarget, toolByTarget, setToolByTarget, configuringTarget, configuringTool, pendingInspection, toolConfigStage, toolBackups, restorePreview, toolConfigWorking, toolConfigError, copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig, checkAndConfigureTool, showRestorePreview, restoreBackup } = toolConfig;
   return (
     <div>
       <ConsumerSearchPanel state={state} apiKeys={apiKeys} apiKeysLoading={apiKeysLoading} apiKeysError={apiKeysError} />
@@ -126,7 +126,6 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
                                     t('consumer.selectRating', { rating: value.toFixed(1) })
                                   }
                                   onChange={(value) => {
-                                    setRatingError('');
                                     setRatingDrafts((current) => ({
                                       ...current,
                                       [node.userId]: value,
@@ -262,7 +261,6 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
           {t('consumer.serviceLinkHint')}{' '}
           <code>{origin}/&lt;protocol&gt;/&lt;base64url(model)&gt;/&lt;peerId&gt;&lt;version-prefix&gt;</code>
         </div>
-        {toolConfigMessage && <div className="hint">{toolConfigMessage}</div>}
         {toolConfigError && <div className="hint err">{toolConfigError}</div>}
       </div>
 

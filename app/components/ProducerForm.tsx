@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { control, newBackendId, type Status } from '@/lib/control-client';
 import { normalizeVersionPrefix } from '@/lib/version-prefix';
 import { useI18n } from '@/lib/i18n/context';
 import { SharingDisclaimerModal } from './SharingDisclaimerModal';
+import { useConfirmDialog } from './ConfirmDialogProvider';
+import { useToast } from './ToastProvider';
 import { BackendFields } from './ProducerBackendFields';
 import { ProducerBackendSidebar } from './ProducerBackendSidebar';
+import { ProducerTrafficPanel } from './ProducerTrafficPanel';
 import {
   DISCLAIMER_ACCEPTED_KEY,
   emptyDraft,
@@ -18,6 +21,23 @@ import {
 } from './producer-form-model';
 import styles from './ProducerForm.module.css';
 
+/** A start/stop the user asked for. The token makes each attempt distinguishable
+ *  so repeating an action notifies again instead of being deduped away. */
+interface PendingAction {
+  kind: 'starting' | 'stopping';
+  token: number;
+}
+
+/** A start is done once the health gate stops checking; a stop once it is off the air. */
+function isSettled(
+  action: PendingAction,
+  backends: Status['producer']['backends'],
+  id: string,
+): boolean {
+  const backend = backends.find((item) => item.id === id);
+  return action.kind === 'starting' ? !!backend && !backend.checking : backend?.enabled === false;
+}
+
 export function ProducerForm({
   status,
   onChanged,
@@ -28,68 +48,113 @@ export function ProducerForm({
   notice?: string;
 }) {
   const { t } = useI18n();
-  const initialCards = () => status.config.backends.map(toCard);
-  const [cards, setCards] = useState<Card[]>(initialCards);
-  // Ids that exist locally but were never added to the server yet (drafts).
-  const [newIds, setNewIds] = useState<Set<string>>(new Set());
-  const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set());
-  const [selectedId, setSelectedId] = useState<string | null>(() => initialCards()[0]?.id ?? null);
+  const { showToast } = useToast();
+  const { confirmAction } = useConfirmDialog();
+  // The server config is the source of truth; local state holds only what the
+  // server does not know yet — unsaved edits and never-added drafts. The card
+  // list is derived during render, so there is no config->state mirroring
+  // effect that can drift out of sync.
+  const [overrides, setOverrides] = useState<Record<string, Card>>({});
+  const [drafts, setDrafts] = useState<Card[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [msgById, setMsgById] = useState<Record<string, string>>({});
-  const [busyById, setBusyById] = useState<Record<string, 'starting' | 'stopping' | undefined>>({});
+  const [pending, setPending] = useState<Record<string, PendingAction>>({});
   const [allBusy, setAllBusy] = useState<'starting' | 'stopping' | null>(null);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [requiresDisclaimerAcceptance, setRequiresDisclaimerAcceptance] = useState(false);
   const pendingShareRef = useRef<(() => Promise<void>) | null>(null);
+  const tokenRef = useRef(0);
+  const notifiedRef = useRef<Set<number>>(new Set());
 
   const connected = status.signaling.connected;
 
-  useEffect(() => {
+  const { cards, newIds } = useMemo(() => {
     const persisted = status.config.backends.map(toCard);
     const persistedIds = new Set(persisted.map((card) => card.id));
-    setCards((current) => {
-      const currentById = new Map(current.map((card) => [card.id, card]));
-      return [
-        ...persisted.map((card) => dirtyIds.has(card.id) ? currentById.get(card.id) ?? card : card),
-        ...current.filter((card) => newIds.has(card.id) && !persistedIds.has(card.id)),
-      ];
-    });
-    setSelectedId((current) =>
-      current && (persistedIds.has(current) || newIds.has(current))
-        ? current
-        : persisted[0]?.id ?? null,
-    );
-  }, [status.config.backends, dirtyIds, newIds]);
+    // A draft the server has adopted is no longer a draft; drop the local copy.
+    const unsaved = drafts.filter((card) => !persistedIds.has(card.id));
+    return {
+      cards: [...persisted.map((card) => overrides[card.id] ?? card), ...unsaved],
+      newIds: new Set(unsaved.map((card) => card.id)),
+    };
+  }, [status.config.backends, overrides, drafts]);
 
+  // A backend stays "busy" only until the live status proves the daemon settled.
+  const busyById = useMemo(() => {
+    const busy: Record<string, 'starting' | 'stopping' | undefined> = {};
+    for (const [id, action] of Object.entries(pending)) {
+      if (!isSettled(action, status.producer.backends, id)) busy[id] = action.kind;
+    }
+    return busy;
+  }, [pending, status.producer.backends]);
+
+  // Health-gate outcomes land long after the click, so they are announced
+  // instead of left as a stale inline message. Tracking by token keeps
+  // StrictMode's double-invocation from raising the same toast twice.
   useEffect(() => {
-    setBusyById((current) => {
-      let changed = false;
-      const next = { ...current };
-      for (const [id, busy] of Object.entries(current)) {
-        const backend = status.producer.backends.find((item) => item.id === id);
-        if (busy === 'starting' && backend && !backend.checking) {
-          next[id] = undefined;
-          changed = true;
-          setMsgById((messages) => ({
-            ...messages,
-            [id]: backend.lastHealth?.ok
-              ? t('producer.savedStarted')
-              : t('producer.healthCheckFailed', {
-                  reason: backend.lastHealth?.reason ?? t('producer.healthReasonUnknown'),
-                }),
-          }));
-        } else if (busy === 'stopping' && backend?.enabled === false) {
-          next[id] = undefined;
-          changed = true;
-          setMsgById((messages) => ({ ...messages, [id]: t('producer.stopped') }));
-        }
+    for (const [id, action] of Object.entries(pending)) {
+      if (notifiedRef.current.has(action.token)) continue;
+      if (!isSettled(action, status.producer.backends, id)) continue;
+      notifiedRef.current.add(action.token);
+      const backend = status.producer.backends.find((item) => item.id === id);
+      if (action.kind === 'stopping') {
+        showToast(t('producer.stopped'), { tone: 'info' });
+      } else if (backend?.lastHealth?.ok) {
+        showToast(t('producer.savedStarted'), { tone: 'success' });
+      } else {
+        showToast(
+          t('producer.healthCheckFailed', {
+            reason: backend?.lastHealth?.reason ?? t('producer.healthReasonUnknown'),
+          }),
+          { tone: 'error' },
+        );
       }
-      return changed ? next : current;
+    }
+  }, [pending, status.producer.backends, showToast, t]);
+
+  // A backend pulled off the air by the health gate must not fail silently.
+  useEffect(() => {
+    const onBackendDown = (event: Event) => {
+      const reason = (event as CustomEvent<string>).detail;
+      showToast(t('producer.backendDownAlert', { reason }), { tone: 'warning' });
+    };
+    window.addEventListener('fs:backend-down', onBackendDown);
+    return () => window.removeEventListener('fs:backend-down', onBackendDown);
+  }, [showToast, t]);
+
+  function beginPending(id: string, kind: PendingAction['kind']): void {
+    tokenRef.current += 1;
+    setPending((current) => ({ ...current, [id]: { kind, token: tokenRef.current } }));
+  }
+
+  /** Drop a request that failed before the daemon ever saw it. */
+  function clearPending(id: string): void {
+    setPending((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
     });
-  }, [status.producer.backends, t]);
+  }
+
+  function setOverride(card: Card): void {
+    setOverrides((current) => ({ ...current, [card.id]: card }));
+  }
+
+  /** Forget a local edit so the server's own copy shows through again. */
+  function clearOverride(id: string): void {
+    setOverrides((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
 
   function patchCard(id: string, patch: Partial<Draft>): void {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-    setDirtyIds((current) => new Set(current).add(id));
+    const card = cards.find((item) => item.id === id);
+    if (!card) return;
+    const edited = { ...card, ...patch };
+    if (newIds.has(id)) setDrafts((current) => current.map((item) => (item.id === id ? edited : item)));
+    else setOverride(edited);
   }
 
   function hasInvalidVersionPrefix(c: Card): boolean {
@@ -125,32 +190,22 @@ export function ProducerForm({
 
   function addNew(): void {
     const card: Card = { ...emptyDraft(), id: newBackendId(), enabled: true };
-    setCards((prev) => [...prev, card]);
-    setNewIds((prev) => new Set(prev).add(card.id));
+    setDrafts((current) => [...current, card]);
     setSelectedId(card.id);
     setMsgById((p) => ({ ...p, [card.id]: '' }));
   }
 
   async function addDraft(c: Card) {
     if (hasInvalidVersionPrefix(c) || hasDuplicateOffering(c)) return;
-    setBusyById((p) => ({ ...p, [c.id]: 'starting' }));
-    setMsgById((p) => ({ ...p, [c.id]: t('producer.starting') }));
+    beginPending(c.id, 'starting');
+    setMsgById((p) => ({ ...p, [c.id]: '' }));
     try {
-      const s = await control({ action: 'addBackend', backend: toInput(c) });
-      onChanged(s);
-      setNewIds((current) => {
-        const drafts = new Set(current);
-        drafts.delete(c.id);
-        return drafts;
-      });
-      setDirtyIds((current) => {
-        const dirty = new Set(current);
-        dirty.delete(c.id);
-        return dirty;
-      });
+      onChanged(await control({ action: 'addBackend', backend: toInput(c) }));
+      setDrafts((current) => current.filter((card) => card.id !== c.id));
+      clearOverride(c.id);
     } catch (error) {
-      setBusyById((p) => ({ ...p, [c.id]: undefined }));
-      setMsgById((p) => ({ ...p, [c.id]: `${t('producer.saveFailed')} ${(error as Error).message}` }));
+      clearPending(c.id);
+      showToast(`${t('producer.saveFailed')} ${(error as Error).message}`, { tone: 'error' });
     }
   }
 
@@ -162,78 +217,72 @@ export function ProducerForm({
       return;
     }
     const started: Card = { ...c, enabled: true };
-    const next = cards.map((x) => (x.id === c.id ? started : x));
-    setCards(next);
-    setBusyById((p) => ({ ...p, [c.id]: 'starting' }));
-    setMsgById((p) => ({ ...p, [c.id]: t('producer.starting') }));
+    setOverride(started);
+    beginPending(c.id, 'starting');
+    setMsgById((p) => ({ ...p, [c.id]: '' }));
     try {
       onChanged(await control({ action: 'updateBackend', backend: toInput(started) }));
-      setDirtyIds((current) => {
-        const dirty = new Set(current);
-        dirty.delete(c.id);
-        return dirty;
-      });
+      clearOverride(c.id);
     } catch (error) {
-      setBusyById((p) => ({ ...p, [c.id]: undefined }));
-      setMsgById((p) => ({ ...p, [c.id]: `${t('producer.saveFailed')} ${(error as Error).message}` }));
+      setOverride(c);
+      clearPending(c.id);
+      showToast(`${t('producer.saveFailed')} ${(error as Error).message}`, { tone: 'error' });
     }
   }
 
   /** Stop sharing just this backend (config kept; takes it off the air). */
   async function stopOne(c: Card) {
-    const stopped: Card = { ...c, enabled: false };
-    const next = cards.map((x) => (x.id === c.id ? stopped : x));
-    setCards(next);
-    setBusyById((p) => ({ ...p, [c.id]: 'stopping' }));
-    setMsgById((p) => ({ ...p, [c.id]: t('producer.stopping') }));
+    setOverride({ ...c, enabled: false });
+    beginPending(c.id, 'stopping');
     try {
       onChanged(await control({ action: 'setBackendEnabled', id: c.id, enabled: false }));
+      clearOverride(c.id);
     } catch (error) {
-      setCards((current) => current.map((item) => item.id === c.id ? c : item));
-      setBusyById((p) => ({ ...p, [c.id]: undefined }));
-      setMsgById((p) => ({ ...p, [c.id]: `${t('producer.stopFailed')} ${(error as Error).message}` }));
+      setOverride(c);
+      clearPending(c.id);
+      showToast(`${t('producer.stopFailed')} ${(error as Error).message}`, { tone: 'error' });
     }
   }
 
   async function removeCard(id: string) {
-    const originalCards = cards;
-    const originalSelectedId = selectedId;
-    const originalDirtyIds = dirtyIds;
-    const isDraft = newIds.has(id);
-    const nextCards = cards.filter((c) => c.id !== id);
-    const drafts = new Set(newIds);
-    drafts.delete(id);
-    setCards(nextCards);
-    setNewIds(drafts);
-    setDirtyIds((current) => {
-      const dirty = new Set(current);
-      dirty.delete(id);
-      return dirty;
+    const card = cards.find((c) => c.id === id);
+    const name = card
+      ? `${card.protocol}/${parseModels(card.modelsText)[0] ?? '—'}`
+      : id;
+    const confirmed = await confirmAction({
+      message: t('producer.removeConfirm', { name }),
+      confirmLabel: t('producer.removeConfirmLabel'),
+      tone: 'danger',
     });
-    if (selectedId === id) setSelectedId(nextCards[0]?.id ?? null);
-    if (!isDraft) {
-      try {
-        onChanged(await control({ action: 'removeBackend', id }));
-      } catch (error) {
-        setCards(originalCards);
-        setSelectedId(originalSelectedId);
-        setNewIds(newIds);
-        setDirtyIds(originalDirtyIds);
-        setMsgById((p) => ({ ...p, [id]: `${t('producer.removeFailed')} ${(error as Error).message}` }));
-      }
+    if (!confirmed) return;
+    if (selectedId === id) setSelectedId(cards.find((c) => c.id !== id)?.id ?? null);
+    if (newIds.has(id)) {
+      setDrafts((current) => current.filter((c) => c.id !== id));
+      showToast(t('producer.removed'), { tone: 'info' });
+      return;
+    }
+    try {
+      onChanged(await control({ action: 'removeBackend', id }));
+      clearOverride(id);
+      showToast(t('producer.removed'), { tone: 'success' });
+    } catch (error) {
+      setSelectedId(id);
+      showToast(`${t('producer.removeFailed')} ${(error as Error).message}`, { tone: 'error' });
     }
   }
 
   /** Start or stop every saved backend at once (drafts are untouched). */
   async function setAllEnabled(enabled: boolean) {
     if (allBusy) return;
-    const originalCards = cards;
+    const previousOverrides = overrides;
     setAllBusy(enabled ? 'starting' : 'stopping');
     const savedCards = cards.filter((c) => !newIds.has(c.id));
+    // Starting everything must not advertise the same protocol/model twice, so
+    // a conflicting backend is skipped instead of quietly shadowing another.
+    const offerings = new Set<string>();
+    let duplicate: { card: Card; offering: string } | undefined;
+    const enabledIds = new Set<string>();
     if (enabled) {
-      const offerings = new Set<string>();
-      let duplicate: { card: Card; offering: string } | undefined;
-      const enabledIds = new Set<string>();
       for (const card of savedCards) {
         const models = parseModels(card.modelsText);
         const protocols = [card.protocol.trim(), ...card.protocolConversions];
@@ -246,45 +295,51 @@ export function ProducerForm({
         keys.forEach((key) => offerings.add(key));
         enabledIds.add(card.id);
       }
-      const next = cards.map((c) =>
-        newIds.has(c.id) ? c : { ...c, enabled: enabledIds.has(c.id) },
-      );
-      setCards(next);
-      const backends = next.filter((c) => !newIds.has(c.id)).map(toInput);
-      try {
-        onChanged(await control({
-          action: 'setBackends', backends, configRevision: status.configRevision,
-        }));
-        setDirtyIds(new Set());
-      } catch (error) {
-        setCards(originalCards);
-        setMsgById((current) => ({ ...current, [selectedId ?? '']: `${t('producer.saveFailed')} ${(error as Error).message}` }));
-      } finally {
-        setAllBusy(null);
-      }
-      if (duplicate) {
-        setSelectedId(duplicate.card.id);
-        setMsgById((current) => ({
-          ...current,
-          [duplicate.card.id]: t('producer.startAllDuplicateSkipped', { offering: duplicate.offering }),
-        }));
-      }
-      return;
     }
-    const next = cards.map((c) => (newIds.has(c.id) ? c : { ...c, enabled }));
-    setCards(next);
-    const backends = next.filter((c) => !newIds.has(c.id)).map((c) => toInput({ ...c, enabled }));
+    const updated = savedCards.map((card) => ({
+      ...card,
+      enabled: enabled && enabledIds.has(card.id),
+    }));
+    setOverrides({
+      ...previousOverrides,
+      ...Object.fromEntries(updated.map((card) => [card.id, card])),
+    });
     try {
       onChanged(await control({
-        action: 'setBackends', backends, configRevision: status.configRevision,
+        action: 'setBackends', backends: updated.map(toInput), configRevision: status.configRevision,
       }));
-      setDirtyIds(new Set());
+      setOverrides({});
+      showToast(enabled ? t('producer.startedAll') : t('producer.stoppedAll'), {
+        tone: enabled ? 'success' : 'info',
+      });
     } catch (error) {
-      setCards(originalCards);
-      setMsgById((current) => ({ ...current, [selectedId ?? '']: `${t('producer.stopFailed')} ${(error as Error).message}` }));
+      setOverrides(previousOverrides);
+      showToast(
+        `${enabled ? t('producer.saveFailed') : t('producer.stopFailed')} ${(error as Error).message}`,
+        { tone: 'error' },
+      );
     } finally {
       setAllBusy(null);
     }
+    if (duplicate) {
+      // A skipped offering is a per-backend problem the user must fix, so it
+      // stays inline on that card rather than scrolling away in a toast.
+      setSelectedId(duplicate.card.id);
+      setMsgById((current) => ({
+        ...current,
+        [duplicate.card.id]: t('producer.startAllDuplicateSkipped', { offering: duplicate.offering }),
+      }));
+    }
+  }
+
+  /** Stopping everything at once is disruptive to live consumers — gate it. */
+  async function confirmStopAll(): Promise<void> {
+    const confirmed = await confirmAction({
+      message: t('producer.stopAllConfirm'),
+      confirmLabel: t('producer.stopAllConfirmLabel'),
+      tone: 'danger',
+    });
+    if (confirmed) await setAllEnabled(false);
   }
 
   function requestShare(action: () => Promise<void>): void {
@@ -318,7 +373,9 @@ export function ProducerForm({
     if (pendingShare) void pendingShare();
   }
 
-  const selected = cards.find((c) => c.id === selectedId) ?? null;
+  // Falling back to the first card keeps the panel populated when the selection
+  // disappears (removed here, or removed on another device and pushed to us).
+  const selected = cards.find((c) => c.id === selectedId) ?? cards[0] ?? null;
   // Start/stop state is read STRICTLY from the live producer status (the running
   // daemon is the source of truth). A backend missing from status — not started,
   // stopped, or the transport is down — counts as not sharing. We don't fall back
@@ -331,10 +388,10 @@ export function ProducerForm({
         <h2>{t('producer.backends')}</h2>
         <div className={styles.layout}>
           <ProducerBackendSidebar
-            cards={cards} status={status} selectedId={selectedId} newIds={newIds}
+            cards={cards} status={status} selectedId={selected?.id ?? null} newIds={newIds}
             busyById={busyById} allBusy={allBusy} connected={connected}
             onAdd={addNew} onSelect={setSelectedId} onRemove={(id) => void removeCard(id)}
-            onSetAllEnabled={(enabled) => void setAllEnabled(enabled)}
+            onSetAllEnabled={(enabled) => void (enabled ? setAllEnabled(true) : confirmStopAll())}
             onRequestStartAll={() => requestShare(() => setAllEnabled(true))}
             onViewDisclaimer={viewDisclaimer}
           />
@@ -364,7 +421,11 @@ export function ProducerForm({
                     {t('producer.disclaimerLink')}
                   </button>
                 </div>
-                {msgById[selected.id] && <div className="hint">{msgById[selected.id]}</div>}
+                {/* Only validation problems remain inline now — operation
+                    results go to toasts — so this is always an error. */}
+                {msgById[selected.id] && (
+                  <div className="hint err" role="alert">{msgById[selected.id]}</div>
+                )}
               </>
             ) : (
               <p className="muted">{t('producer.selectBackend')}</p>
@@ -379,6 +440,8 @@ export function ProducerForm({
       <div className="card">
         <div className="hint">{t('producer.healthHint')}</div>
       </div>
+
+      <ProducerTrafficPanel status={status} />
 
       {showDisclaimer && (
         <SharingDisclaimerModal

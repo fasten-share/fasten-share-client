@@ -6,6 +6,9 @@ import type { EncryptedApiKey } from '@/lib/api-key-crypto-types';
 import { ENCRYPTION_SESSION_EXPIRED } from '@/lib/api-key-crypto-types';
 import { decryptApiKeyFromNode, encryptApiKeyForNode } from '@/lib/client/api-key-crypto';
 import { clearAuthentication } from '@/lib/client/auth-session';
+import type { ProducerTraffic } from '@/lib/server/types';
+
+export type { ProducerTraffic, RequestSample, TrafficBucket } from '@/lib/server/types';
 
 export interface BackendView {
   id: string;
@@ -38,7 +41,7 @@ export interface Status {
   configRevision: number;
   transport: { ready: boolean; wsPort: number };
   signaling: { connected: boolean; peerId?: string };
-  producer: { running: boolean; registered: boolean; backends: BackendHealth[] };
+  producer: { running: boolean; registered: boolean; backends: BackendHealth[]; traffic: ProducerTraffic };
   config: { signalUrl: string; autoShare: boolean; backends: BackendView[] };
   connectedProducers: { protocol: string; peerId: string }[];
 }

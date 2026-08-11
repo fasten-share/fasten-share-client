@@ -10,10 +10,17 @@ import {
 import type { ToolId } from '@/lib/tool-support';
 import type { useI18n } from '@/lib/i18n/context';
 import type { CurlTarget } from './consumer-utils';
+import { useToast } from './ToastProvider';
 
 type Translate = ReturnType<typeof useI18n>['t'];
 
 export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, t: Translate) {
+  // Outcomes are announced rather than rendered inline: the tool-config modal
+  // sits above the page, so a message printed underneath it went unseen.
+  const { showToast } = useToast();
+  const notifyError = (error: unknown): void => {
+    showToast(error instanceof Error ? error.message : String(error), { tone: 'error' });
+  };
   const [copied, setCopied] = useState('');
   const [curlTarget, setCurlTarget] = useState<CurlTarget | null>(null);
   const [toolByTarget, setToolByTarget] = useState<Record<string, ToolId>>({});
@@ -28,7 +35,6 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
     environment: Array<{ name: string; source: string }>;
   } | null>(null);
   const [toolConfigWorking, setToolConfigWorking] = useState(false);
-  const [toolConfigMessage, setToolConfigMessage] = useState('');
   const [toolConfigError, setToolConfigError] = useState('');
 
   function copy(text: string) {
@@ -44,7 +50,6 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
       return;
     }
     setToolConfigError('');
-    setToolConfigMessage('');
     setConfiguringTarget(target);
     setConfiguringTool(tool);
     setToolConfigStage('inspect');
@@ -54,7 +59,7 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
       setPendingInspection(inspection);
       setToolBackups(backups);
     } catch (error) {
-      setToolConfigError(error instanceof Error ? error.message : String(error));
+      notifyError(error);
       setConfiguringTarget(null);
       setConfiguringTool(null);
     }
@@ -75,10 +80,10 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
       const result = await cleanupTool(tool);
       setPendingInspection(result);
       setToolConfigStage('cleaned');
-      setToolConfigMessage(t('consumer.toolConfigCleaned', { backup: result.backupPath || t('consumer.noBackup') }));
+      showToast(t('consumer.toolConfigCleaned', { backup: result.backupPath || t('consumer.noBackup') }), { tone: 'success' });
       setToolBackups(await listToolBackups(tool));
     } catch (error) {
-      setToolConfigError(error instanceof Error ? error.message : String(error));
+      notifyError(error);
     } finally {
       setToolConfigWorking(false);
     }
@@ -98,7 +103,7 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
       }
       await finishToolConfig(target, tool);
     } catch (error) {
-      setToolConfigError(error instanceof Error ? error.message : String(error));
+      notifyError(error);
     } finally {
       setToolConfigWorking(false);
     }
@@ -108,7 +113,7 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
     setToolConfigWorking(true);
     setToolConfigError('');
     try { setRestorePreview(await previewToolRestore(tool, backupId)); }
-    catch (error) { setToolConfigError(error instanceof Error ? error.message : String(error)); }
+    catch (error) { notifyError(error); }
     finally { setToolConfigWorking(false); }
   }
 
@@ -118,8 +123,8 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
       setPendingInspection(await restoreTool(tool, backupId));
       setRestorePreview(null);
       setToolConfigStage('inspect');
-      setToolConfigMessage(t('consumer.toolConfigRestored'));
-    } catch (error) { setToolConfigError(error instanceof Error ? error.message : String(error)); }
+      showToast(t('consumer.toolConfigRestored'), { tone: 'success' });
+    } catch (error) { notifyError(error); }
     finally { setToolConfigWorking(false); }
   }
 
@@ -135,17 +140,18 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
         versionPrefix: target.versionPrefix,
         apiKey: selectedApiKey.key,
       });
-      setToolConfigMessage(
+      showToast(
         t('consumer.toolConfigured', {
           path: result.configPath,
           backup: result.backupPath || t('consumer.noBackup'),
         }),
+        { tone: 'success' },
       );
       setPendingInspection(null);
       setConfiguringTarget(null);
       setConfiguringTool(null);
     } catch (error) {
-      setToolConfigError(error instanceof Error ? error.message : String(error));
+      notifyError(error);
       setPendingInspection(null);
       setConfiguringTarget(null);
       setConfiguringTool(null);
@@ -155,7 +161,7 @@ export function useConsumerToolConfig(selectedApiKey: ConsumerApiKeyDto | null, 
   return {
     copied, curlTarget, setCurlTarget, toolByTarget, setToolByTarget,
     configuringTarget, configuringTool, pendingInspection, toolConfigStage,
-    toolBackups, restorePreview, toolConfigWorking, toolConfigMessage, toolConfigError,
+    toolBackups, restorePreview, toolConfigWorking, toolConfigError,
     copy, beginToolConfig, closeToolConfigPreview, cleanToolConfig,
     checkAndConfigureTool, showRestorePreview, restoreBackup,
   };

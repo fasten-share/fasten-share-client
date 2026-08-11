@@ -1,0 +1,120 @@
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.metricLabel {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.metricValue {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ok {
+  color: var(--accent-2);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 56px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.bar {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  transition: height 240ms ease-out;
+}
+
+.barFailure {
+  background: var(--warn);
+}
+
+.sparklineLabel {
+  margin: 6px 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tableWrap {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.model {
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.resultOk {
+  color: var(--accent-2);
+}
+
+.resultFailed {
+  color: var(--danger);
+}

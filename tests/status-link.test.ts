@@ -9,6 +9,12 @@ vi.mock('@/lib/control-client', () => ({ discoverModels: mocks.discover, getStat
 
 import { DEFAULT_WS_PORT, REPLACED_CODE, WS_PATH } from '@/lib/bridge-protocol';
 import { startStatusLink } from '@/lib/client/status-link';
+import type { ProducerTraffic } from '@/lib/server/types';
+
+// Fixed so repeated seed() calls stay deeply equal (emptyTraffic() stamps now()).
+const traffic = (): ProducerTraffic => ({
+  recent: [], buckets: [], totals: { success: 0, failure: 0, bytes: 0, since: 0 },
+});
 import type { Status } from '@/lib/control-client';
 
 class FakeWebSocket {
@@ -37,7 +43,7 @@ const seed = (): Status => ({
   configRevision: 0,
   transport: { ready: false, wsPort: DEFAULT_WS_PORT },
   signaling: { connected: false },
-  producer: { running: false, registered: false, backends: [] },
+  producer: { running: false, registered: false, backends: [], traffic: traffic() },
   config: { signalUrl: 'wss://signal', autoShare: false, backends: [] },
   connectedProducers: [],
 });
@@ -72,7 +78,7 @@ describe('status link', () => {
     socket.message(JSON.stringify({
       t: 'status', userId: '1',
       configRevision: 0,
-      producer: { running: true, registered: true, backends: [] },
+      producer: { running: true, registered: true, backends: [], traffic: traffic() },
       connectedProducers: [{ protocol: 'openai', peerId: 'p1' }],
       node: { signaling: { connected: true, peerId: 'node' } },
     }));
@@ -105,7 +111,7 @@ describe('status link', () => {
     FakeWebSocket.instances[0].message(JSON.stringify({
       t: 'status', userId: '1',
       configRevision: 0,
-      producer: { running: true, registered: true, backends: [] },
+      producer: { running: true, registered: true, backends: [], traffic: traffic() },
       connectedProducers: [],
       node: { signaling: { connected: true, peerId: 'node' } },
     }));
@@ -130,7 +136,7 @@ describe('status link', () => {
     FakeWebSocket.instances[0].message(JSON.stringify({
       t: 'status', userId: '1',
       configRevision: 1,
-      producer: { running: true, registered: true, backends: [] },
+      producer: { running: true, registered: true, backends: [], traffic: traffic() },
       connectedProducers: [],
       node: { signaling: { connected: true, peerId: 'node' } },
     }));
@@ -157,7 +163,7 @@ describe('status link', () => {
     FakeWebSocket.instances[0].message(JSON.stringify({
       t: 'status', userId: '1',
       configRevision: 0,
-      producer: { running: false, registered: false, backends: [] },
+      producer: { running: false, registered: false, backends: [], traffic: traffic() },
       connectedProducers: [],
       node: { signaling: { connected: false } },
     }));

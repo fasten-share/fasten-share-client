@@ -18,6 +18,7 @@ import { normalizeCostMultiplier } from '../cost';
 import { ProducerConnection, type ProducerEvent } from './producer-connection';
 import { buildAdvertisedOfferings, probeHealth, type HealthResult } from './producer-health';
 import { ProducerRequestRouter, type BackendRequestResult } from './producer-request-router';
+import { TrafficLog } from './producer-traffic';
 
 const HEARTBEAT_MS = 15_000;
 const HEALTH_MS = 30_000;
@@ -30,6 +31,8 @@ const HEALTH_MS = 30_000;
 type Events = {
   status: (s: ProducerStatus) => void;
   autodown: (reason: string) => void;
+  /** Fired when a served request finishes, so the shell can react in real time. */
+  traffic: () => void;
 };
 
 export { joinUrl, probeHealth } from './producer-health';
@@ -50,6 +53,8 @@ export class ProducerDaemon extends Emitter<Events> {
   private checking = new Map<string, boolean>();
   private operation = new Map<string, number>();
   private requestCounts = new Map<string, { success: number; failure: number }>();
+  /** Independent of the health counters above, which the probe cycle consumes. */
+  private readonly traffic = new TrafficLog();
   private readonly requestRouter: ProducerRequestRouter;
   private readonly requestListener = (event: ProducerEvent) => this.requestRouter.handle(event);
   private readonly closeListener = () => this.onSignalingClose();
@@ -61,6 +66,12 @@ export class ProducerDaemon extends Emitter<Events> {
       () => this.backends.values(),
       (id) => this.advertise.get(id) === true,
       (id, result) => this.recordRequestResult(id, result),
+      (observation) => {
+        this.traffic.record(observation);
+        // Status pushes are throttled downstream; this only marks the snapshot
+        // dirty so the shell can coalesce renders.
+        this.emit('traffic');
+      },
     );
   }
 
@@ -75,7 +86,12 @@ export class ProducerDaemon extends Emitter<Events> {
       checking: this.checking.get(b.id) === true,
       lastHealth: this.health.get(b.id),
     }));
-    return { running: this.running, registered: this.registered, backends };
+    return {
+      running: this.running,
+      registered: this.registered,
+      backends,
+      traffic: this.traffic.snapshot(),
+    };
   }
 
   start(): void {
@@ -193,6 +209,7 @@ export class ProducerDaemon extends Emitter<Events> {
     this.advertise.delete(id);
     this.checking.delete(id);
     this.requestCounts.delete(id);
+    this.traffic.forget(id);
   }
 
   /** Probe one backend and record its health + advertise decision (strict gate).

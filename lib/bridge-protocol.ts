@@ -20,7 +20,13 @@ export type BridgeCommand = {
   configRevision: number;
   // Node owns signaling, so it includes its state for the passive page to render.
   node: { signaling: { connected: boolean; peerId?: string } };
-} | { t: 'forcedLogout'; userId: string; code: 'DEVICE_LIMIT_EXCEEDED' };
+} | { t: 'forcedLogout'; userId: string; code: 'DEVICE_LIMIT_EXCEEDED' }
+  /**
+   * A backend was pulled off the air by the health gate. Surfaced so the page can
+   * warn the user (and the desktop shell can raise a system notification) instead
+   * of silently dropping the offering.
+   */
+  | { t: 'backendDown'; userId: string; reason: string };
 
 /** Default port for the local status channel; overridable via FS_WS_PORT. */
 export const DEFAULT_WS_PORT = 8087;

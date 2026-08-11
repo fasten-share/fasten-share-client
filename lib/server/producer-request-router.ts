@@ -23,6 +23,20 @@ export type BackendRequestResult = {
   reason?: 'AUTH' | 'QUOTA' | 'HTTP' | 'NETWORK';
 };
 
+/** Everything the traffic feed needs about one finished request. */
+export type RequestObservation = {
+  requestId: string;
+  backendId: string;
+  protocol: string;
+  model: string;
+  at: number;
+  durationMs: number;
+  bytes: number;
+  ok: boolean;
+  reason?: 'AUTH' | 'QUOTA' | 'HTTP' | 'NETWORK' | 'CANCELLED';
+  status?: number;
+};
+
 class DownstreamError extends Error {}
 
 type NativeInbound = {
@@ -48,13 +62,64 @@ type Inbound = NativeInbound | ConvertedInbound;
 export class ProducerRequestRouter {
   private readonly activeRequests = new Map<string, Set<symbol>>();
   private readonly inbound = new Map<string, Inbound>();
+  /** Live per-request accounting for the traffic feed, keyed by requestId. */
+  private readonly observations = new Map<string, {
+    backendId: string;
+    protocol: string;
+    model: string;
+    startedAt: number;
+    bytes: number;
+    settled: boolean;
+  }>();
 
   constructor(
     private readonly connection: ProducerConnection,
     private readonly candidates: () => Iterable<BackendConfig>,
     private readonly isAdvertised: (backendId: string) => boolean,
     private readonly onResult: (backendId: string, result: BackendRequestResult) => void,
+    private readonly onObservation: (observation: RequestObservation) => void = () => {},
   ) {}
+
+  /** Begin accounting for a request that has been matched to a backend. */
+  private beginObservation(
+    requestId: string,
+    backend: BackendConfig,
+    protocol: string,
+    model: string,
+  ): void {
+    this.observations.set(requestId, {
+      backendId: backend.id,
+      protocol,
+      model,
+      startedAt: Date.now(),
+      bytes: 0,
+      settled: false,
+    });
+  }
+
+  /** Emit the traffic sample for a request exactly once. */
+  private endObservation(
+    requestId: string,
+    outcome: { ok: boolean; reason?: RequestObservation['reason']; status?: number },
+  ): void {
+    const observation = this.observations.get(requestId);
+    if (!observation || observation.settled) return;
+    observation.settled = true;
+    this.observations.delete(requestId);
+    const at = Date.now();
+    this.onObservation({
+      requestId,
+      backendId: observation.backendId,
+      protocol: observation.protocol,
+      model: observation.model,
+      at,
+      durationMs: at - observation.startedAt,
+      bytes: observation.bytes,
+      ok: outcome.ok,
+      reason: outcome.reason,
+      status: outcome.status,
+    });
+  }
 
   abortAll(reason: string): void {
     for (const [requestId, active] of this.inbound) {
@@ -65,6 +130,7 @@ export class ProducerRequestRouter {
         this.release(active.backend.id, active.slot);
       }
       this.inbound.delete(requestId);
+      this.endObservation(requestId, { ok: false, reason: 'CANCELLED' });
     }
   }
 
@@ -102,6 +168,7 @@ export class ProducerRequestRouter {
         this.inbound.delete(event.requestId);
         this.release(active.backend.id, active.slot);
       }
+      this.endObservation(event.requestId, { ok: false, reason: 'CANCELLED' });
     }
   }
 
@@ -165,6 +232,7 @@ export class ProducerRequestRouter {
         this.release(selected.backend.id, slot);
         throw new AdapterError('The converted protocol only accepts POST requests to /responses.');
       }
+      this.beginObservation(event.requestId, selected.backend, protocol, model);
       this.inbound.set(event.requestId, {
         kind: 'converted',
         abort: new AbortController(),
@@ -178,6 +246,7 @@ export class ProducerRequestRouter {
       });
       return;
     }
+    this.beginObservation(event.requestId, selected.backend, protocol, model);
     await this.forwardNative(event.requestId, selected.backend, slot, method, path, rawHeaders);
   }
 
@@ -217,9 +286,18 @@ export class ProducerRequestRouter {
       if (!response.ok) record({ ok: false, reason: this.failureReason(response.status) });
       await this.streamRawResponse(requestId, response);
       if (response.ok) record({ ok: true });
+      this.endObservation(requestId, {
+        ok: response.ok,
+        reason: response.ok ? undefined : this.failureReason(response.status),
+        status: response.status,
+      });
     } catch (error) {
       if (!abort.signal.aborted && !(error instanceof DownstreamError)) record({ ok: false, reason: 'NETWORK' });
       if (!abort.signal.aborted) this.sendError(requestId, error);
+      this.endObservation(requestId, {
+        ok: false,
+        reason: abort.signal.aborted ? 'CANCELLED' : 'NETWORK',
+      });
     } finally {
       this.inbound.delete(requestId);
       this.release(backend.id, slot);
@@ -260,10 +338,16 @@ export class ProducerRequestRouter {
       if (!response.ok) {
         record({ ok: false, reason: this.failureReason(response.status) });
         await this.streamRawResponse(requestId, response);
+        this.endObservation(requestId, {
+          ok: false,
+          reason: this.failureReason(response.status),
+          status: response.status,
+        });
         return;
       }
       await this.streamConvertedResponse(requestId, response, context);
       record({ ok: true });
+      this.endObservation(requestId, { ok: true, status: response.status });
     } catch (error) {
       if (!active.abort.signal.aborted) {
         if (!(error instanceof AdapterError && error.status < 500) && !(error instanceof DownstreamError)) {
@@ -271,6 +355,10 @@ export class ProducerRequestRouter {
         }
         this.sendError(requestId, error);
       }
+      this.endObservation(requestId, {
+        ok: false,
+        reason: active.abort.signal.aborted ? 'CANCELLED' : 'NETWORK',
+      });
     } finally {
       this.inbound.delete(requestId);
       this.release(active.backend.id, active.slot);
@@ -282,6 +370,7 @@ export class ProducerRequestRouter {
     active.abort.abort();
     this.inbound.delete(requestId);
     this.release(active.backend.id, active.slot);
+    this.endObservation(requestId, { ok: false, reason: 'HTTP', status: 400 });
   }
 
   private async streamRawResponse(requestId: string, response: Response): Promise<void> {
@@ -347,6 +436,8 @@ export class ProducerRequestRouter {
   }
 
   private async sendBytes(requestId: string, value: Uint8Array): Promise<void> {
+    const observation = this.observations.get(requestId);
+    if (observation) observation.bytes += value.length;
     for (let offset = 0; offset < value.length; offset += MAX_CHUNK_BYTES) {
       if (!await this.connection.respondChunk(requestId, value.subarray(offset, offset + MAX_CHUNK_BYTES))) {
         throw new DownstreamError('server connection not open');

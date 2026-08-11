@@ -4,6 +4,7 @@ import { getBrowserLink, type BrowserLink } from './browser-link';
 import { config } from './config';
 import { ProducerConnection } from './producer-connection';
 import { ProducerDaemon } from './producer';
+import { emptyTraffic } from './producer-traffic';
 import type { BackendConfig, Candidate, ProducerStatus } from './types';
 import type { UserDto } from '../client/auth-types';
 import { normalizeSupportedTools } from '../tool-support';
@@ -16,6 +17,9 @@ import {
   normalizeProtocolConversions,
 } from '../protocol-conversions';
 import { generateApiKeyEncryptionKey } from './api-key-crypto';
+
+/** Upper bound on how often traffic-only changes reach the control page. */
+const TRAFFIC_PUSH_INTERVAL_MS = 1_000;
 
 function producerWsUrl(serverUrl: string): string {
   const url = new URL(serverUrl);
@@ -35,12 +39,15 @@ export function tokenUserId(token: string): string | null {
 export class AccountRuntime {
   private readonly connection: ProducerConnection;
   private producer?: ProducerDaemon;
-  private producerStatus: ProducerStatus = { running: false, registered: false, backends: [] };
+  private producerStatus: ProducerStatus = {
+    running: false, registered: false, backends: [], traffic: emptyTraffic(),
+  };
   private producerId: string | null = null;
   private configRevision = 0;
   private forcedLogoutCode: 'DEVICE_LIMIT_EXCEEDED' | null = null;
   private profile: AccountProfile;
   private renewalTimer?: ReturnType<typeof setTimeout>;
+  private trafficPushTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     readonly userId: string,
@@ -111,7 +118,22 @@ export class AccountRuntime {
         this.producerStatus = status;
         this.pushStatus();
       });
-      producer.on('autodown', (reason) => console.warn(`[producer:${this.userId}]`, reason));
+      // Traffic fires once per served request, which can be far faster than the
+      // UI can repaint. Coalesce into at most one push per interval so a busy
+      // producer cannot flood the local socket or thrash the renderer.
+      producer.on('traffic', () => {
+        if (this.producer !== producer || this.trafficPushTimer) return;
+        this.trafficPushTimer = setTimeout(() => {
+          this.trafficPushTimer = undefined;
+          if (this.producer !== producer) return;
+          this.producerStatus = producer.status();
+          this.pushStatus();
+        }, TRAFFIC_PUSH_INTERVAL_MS);
+      });
+      producer.on('autodown', (reason) => {
+        console.warn(`[producer:${this.userId}]`, reason);
+        this.link.send({ t: 'backendDown', userId: this.userId, reason });
+      });
       producer.start();
     }
     return this.producer;
@@ -123,9 +145,9 @@ export class AccountRuntime {
   }
   stopProducer(): void {
     this.producer?.stop('manual'); this.producer = undefined;
-    this.producerStatus = { running: false, registered: false, backends: [] }; this.pushStatus();
+    this.producerStatus = { running: false, registered: false, backends: [], traffic: emptyTraffic() }; this.pushStatus();
   }
-  stop(): void { clearTimeout(this.renewalTimer); this.stopProducer(); this.connection.stop(); this.accessToken = ''; }
+  stop(): void { clearTimeout(this.renewalTimer); clearTimeout(this.trafficPushTimer); this.trafficPushTimer = undefined; this.stopProducer(); this.connection.stop(); this.accessToken = ''; }
   async discoverModels(keyword: string, protocol: string, publisherUserIds?: string[], cursor?: string, limit = 20) {
     if (!this.accessToken) return { candidates: [] as Candidate[], nextCursor: null, hasMore: false, limit };
     const url = new URL('/api/v1/producers', config.all().serverUrl);
