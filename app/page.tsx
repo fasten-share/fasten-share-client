@@ -18,6 +18,7 @@ import { formatCreditBalance } from './home-utils';
 import { useHomeProducer } from './hooks/useHomeProducer';
 import { useHomeSession } from './hooks/useHomeSession';
 import { usePersistentTab } from './hooks/usePersistentTab';
+import { useTrayStatus } from './hooks/useTrayStatus';
 import styles from './page.module.css';
 
 export default function Home() {
@@ -34,6 +35,9 @@ export default function Home() {
   const [tab, setTab] = usePersistentTab(user?.id);
   const { status, setStatus, signalUrl, setBridgeHandle, autoShareNotice,
     onStatus, setAutoShare, discover } = useHomeProducer();
+
+  // Mirrors node state into the desktop tray; a no-op in the browser.
+  useTrayStatus(status, setStatus);
 
   const closeAccountMenu = useCallback(() => {
     accountMenuRef.current?.removeAttribute('open');
