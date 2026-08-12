@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement } from 'react';
+import { act, createElement, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toTraySummary, useTrayStatus } from '../app/hooks/useTrayStatus';
@@ -92,6 +92,69 @@ async function render(current: Status | null, onChanged = vi.fn()): Promise<void
   });
 }
 
+// A stateful harness that mirrors the app: the hook owns no state, it gets the
+// snapshot as a prop and pushes updates back up through onChanged. `initial`
+// changes model status pushes from the local ws link.
+function StatefulHarness({ initial }: { initial: Status }) {
+  const [current, setCurrent] = useState<Status>(initial);
+  useEffect(() => { setCurrent(initial); }, [initial]);
+  useTrayStatus(current, setCurrent);
+  return null;
+}
+
+describe('round trip through real state', () => {
+  it('stops the producer and re-sends the tray summary immediately', async () => {
+    const stopped = status({
+      producer: {
+        running: false, registered: false, backends: [],
+        traffic: { recent: [], buckets: [], totals: { success: 0, failure: 0, bytes: 0, since: 0 } },
+      },
+    });
+    control.mockResolvedValue(stopped);
+    await act(async () => {
+      root.render(createElement(StatefulHarness, { initial: status() }));
+    });
+    bridge.sendTrayStatus.mockClear();
+
+    await act(async () => emitCommand('stopSharing'));
+    expect(control).toHaveBeenCalledWith({ action: 'stopProducer' });
+    expect(bridge.sendTrayStatus).toHaveBeenCalledTimes(1);
+    expect(bridge.sendTrayStatus.mock.calls[0][0]).toMatchObject({
+      connected: true, sharing: 0, configured: 1,
+    });
+  });
+
+  it('starts sharing and flips the tray on the control response, health probe or not', async () => {
+    // The start response arrives before the async health probe finishes:
+    // backends are enabled but nothing is advertised yet. The window shows
+    // them as sharing, so the tray must flip too — this was the bug where
+    // starting from the tray never changed the icon or menu.
+    const starting = status({
+      producer: {
+        running: true, registered: true, backends: [backendHealth({ advertised: false })],
+        traffic: { recent: [], buckets: [], totals: { success: 0, failure: 0, bytes: 0, since: 0 } },
+      },
+    });
+    control.mockResolvedValue(starting);
+    await act(async () => {
+      root.render(createElement(StatefulHarness, { initial: status({
+        producer: {
+          running: false, registered: false, backends: [],
+          traffic: { recent: [], buckets: [], totals: { success: 0, failure: 0, bytes: 0, since: 0 } },
+        },
+      }) }));
+    });
+    bridge.sendTrayStatus.mockClear();
+
+    await act(async () => emitCommand('startSharing'));
+    expect(control).toHaveBeenCalledWith({ action: 'startProducer' });
+    expect(bridge.sendTrayStatus).toHaveBeenCalledTimes(1);
+    expect(bridge.sendTrayStatus.mock.calls[0][0]).toMatchObject({
+      connected: true, sharing: 1, configured: 1,
+    });
+  });
+});
+
 describe('toTraySummary', () => {
   it('describes a node that has nothing yet', () => {
     expect(toTraySummary(null)).toEqual({
@@ -99,13 +162,15 @@ describe('toTraySummary', () => {
     });
   });
 
-  it('counts only the backends actually on the air', () => {
+  it('counts the backends the user has enabled, not just the advertised ones', () => {
     const summary = toTraySummary(status({
       producer: {
         running: true, registered: true,
         backends: [
-          backendHealth({ id: 'b1', advertised: true }),
-          backendHealth({ id: 'b2', advertised: false }),
+          // Enabled but not yet on the air (health probe pending) still counts:
+          // the window shows it as sharing, so the tray must too.
+          backendHealth({ id: 'b1', advertised: false }),
+          backendHealth({ id: 'b2', enabled: false, advertised: true }),
         ],
         traffic: { recent: [], buckets: [], totals: { success: 7, failure: 2, bytes: 0, since: 0 } },
       },
@@ -165,7 +230,7 @@ describe('useTrayStatus', () => {
     await render(status());
     await render(status({
       producer: {
-        running: true, registered: true, backends: [backendHealth({ advertised: false })],
+        running: true, registered: true, backends: [backendHealth({ enabled: false })],
         traffic: { recent: [], buckets: [], totals: { success: 0, failure: 0, bytes: 0, since: 0 } },
       },
     }));

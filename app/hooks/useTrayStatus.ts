@@ -15,7 +15,11 @@ export function toTraySummary(status: Status | null): TraySummary {
   );
   return {
     connected: status.signaling.connected,
-    sharing: status.producer.backends.filter((backend) => backend.advertised).length,
+    // "Sharing" means what the window means by it: backends the user has
+    // enabled on a running daemon. Counting `advertised` instead would leave
+    // the tray stuck on "idle" until the async health probe passes (or fails
+    // outright), so toggling from the tray would never move the icon or menu.
+    sharing: status.producer.backends.filter((backend) => backend.enabled).length,
     configured: status.config.backends.length,
     served: status.producer.traffic.totals.success,
     failing: failed?.lastHealth?.reason ?? undefined,
