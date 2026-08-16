@@ -1,4 +1,4 @@
-import { normalizeCostMultiplier } from '../cost';
+import { normalizeCostMultiplier, normalizeFreeCredits } from '../cost';
 import { normalizeSupportedTools } from '../tool-support';
 import { versionPrefixOrDefault } from '../version-prefix';
 import { adapterFor } from './protocols';
@@ -57,13 +57,14 @@ export function buildAdvertisedOfferings(
     const protocols = convertedProtocols.length ? convertedProtocols : [backend.protocol];
     for (const protocol of protocols) {
       const entry = byProtocol.get(protocol) ?? {
-        models: [], costMultipliers: {}, supportedTools: {}, versionPrefixes: {}, maxConcurrency: {},
+        models: [], costMultipliers: {}, freeCredits: {}, supportedTools: {}, versionPrefixes: {}, maxConcurrency: {},
       };
       const multiplier = normalizeCostMultiplier(backend.costMultiplier);
       const tools = normalizeSupportedTools(backend.supportedTools, protocol);
       for (const model of backend.models) {
         if (!entry.models.includes(model)) entry.models.push(model);
         entry.costMultipliers![model] ??= multiplier;
+        entry.freeCredits![model] ??= normalizeFreeCredits(backend.freeCredits);
         entry.supportedTools![model] = normalizeSupportedTools(
           [...(entry.supportedTools?.[model] ?? []), ...tools], protocol,
         );
@@ -75,5 +76,13 @@ export function buildAdvertisedOfferings(
       byProtocol.set(protocol, entry);
     }
   }
-  return [...byProtocol].map(([protocol, offering]) => ({ protocol, ...offering }));
+  return [...byProtocol].map(([protocol, offering]) => {
+    const next: Offering = { protocol, ...offering };
+    const freeCredits = Object.fromEntries(
+      Object.entries(offering.freeCredits ?? {}).filter(([, value]) => value > 0),
+    );
+    if (Object.keys(freeCredits).length > 0) next.freeCredits = freeCredits;
+    else delete next.freeCredits;
+    return next;
+  });
 }

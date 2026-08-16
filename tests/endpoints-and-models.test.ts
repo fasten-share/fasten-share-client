@@ -55,12 +55,12 @@ describe('producer form model', () => {
   it('trims and converts an Azure card into backend input', () => {
     const card: Card = {
       id: ' b-1 ', baseUrl: ' https://azure.example/// ', protocol: 'azure-openai', apiVersion: ' 2025-01-01 ',
-      modelsText: 'one, two\none', costMultiplier: 2000, maxConcurrency: 3.8, apiKey: '',
+      modelsText: 'one, two\none', costMultiplier: 2000, freeCredits: 50000.9, maxConcurrency: 3.8, apiKey: '',
       supportedTools: ['curl', 'hermes'], versionPrefix: ' openai/ ', protocolConversions: [], enabled: false,
     };
     expect(toInput(card)).toEqual({
       id: ' b-1 ', baseUrl: 'https://azure.example', protocol: 'azure-openai', models: ['one', 'two', 'one'],
-      costMultiplier: 2000, maxConcurrency: 3, apiKey: undefined, apiVersion: '2025-01-01', enabled: false,
+      costMultiplier: 2000, freeCredits: 50000, maxConcurrency: 3, apiKey: undefined, apiVersion: '2025-01-01', enabled: false,
       supportedTools: ['curl', 'hermes'], versionPrefix: '/openai', protocolConversions: [],
     });
   });

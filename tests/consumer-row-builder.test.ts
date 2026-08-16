@@ -49,4 +49,26 @@ describe('consumer row credit thresholds', () => {
       creditThresholdMet: true,
     });
   });
+
+  it('maps per-model free credit quotas onto each node', () => {
+    const rows = buildConsumerRows(
+      [candidate({ freeCredits: { model: 200000 } })],
+      'all',
+      '',
+      new Map(),
+      new Map(),
+      [],
+    );
+    expect(rows[0].nodes[0]).toMatchObject({ freeCredits: 200000 });
+
+    const withoutQuota = buildConsumerRows(
+      [candidate()],
+      'all',
+      '',
+      new Map(),
+      new Map(),
+      [],
+    );
+    expect(withoutQuota[0].nodes[0].freeCredits).toBe(0);
+  });
 });

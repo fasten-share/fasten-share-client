@@ -253,6 +253,9 @@ export const zh: Record<keyof typeof en, string> = {
   'consumer.costMultiplier': '积分消耗倍率',
   'consumer.freeMultiplier': '免费',
   'consumer.freeMultiplierHelp': '每次请求最低消费10积分',
+  'consumer.freeCredits': '免费额度',
+  'consumer.freeCreditsHelp':
+    '该节点为本模型提供了免费积分额度：额度内按量计费部分（计量字节 × 倍率）免除，但每次请求仍收取 10 积分保底扣费。额度单位是积分，可免费计量的字节数 = 额度 ÷ 倍率；跨请求累计、用满即止。',
   'consumer.creditThresholdNotMet': '积分门槛不足',
   'consumer.creditThresholdRequired': '门槛积分：{credits}',
   'consumer.versionPrefix': '版本号前缀',
@@ -351,6 +354,11 @@ export const zh: Record<keyof typeof en, string> = {
   'producer.costMultiplierHelp':
     '积分消耗倍率越高，您通过生产token获得的积分就越高，积分消耗倍率越低，您的token就越容易被尽快使用。可设为 0；非 0 时范围为 0.000001–999999。',
   'producer.maxConcurrency': '最大并发请求数',
+  'producer.freeCredits': '免费积分额度（每位消费者）',
+  'producer.freeCreditsHelp':
+    '为本后端每个模型配置的免费积分额度：每位消费者针对「该节点 + 该模型」累计可免的按量积分上限。0 表示不提供免费额度。额度内按量计费部分被免除，但每次请求仍收取 10 积分保底扣费；额度用满后恢复按倍率正常计费。额度跨请求累计、用满即止，不会刷新。',
+  'producer.freeCreditsHint':
+    '额度单位是积分，可免费计量的字节数 = 额度 ÷ 倍率。例如额度 20 万、倍率 1 时免 20 万计量字节；倍率 2 时免 10 万计量字节。',
   'producer.supportedTools': '支持的消费者工具',
   'producer.supportedToolsHint': '以下选项按 {protocol} 协议筛选，至少选择一项。Claude 仅支持 anthropic，Codex 仅支持 openai-response，Pi 暂不支持 azure-openai。',
   'producer.saveStart': '保存并开始共享',

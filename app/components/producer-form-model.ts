@@ -1,6 +1,6 @@
 import type { BackendInput, BackendView } from '@/lib/control-client';
 import { normalizeMaxConcurrency } from '@/lib/concurrency';
-import { normalizeCostMultiplier } from '@/lib/cost';
+import { normalizeCostMultiplier, normalizeFreeCredits } from '@/lib/cost';
 import {
   consumerToolProtocol,
   normalizeProtocolConversions,
@@ -22,6 +22,7 @@ export interface Draft {
   apiVersion: string;
   modelsText: string;
   costMultiplier: number;
+  freeCredits: number;
   maxConcurrency: number;
   apiKey: string;
   supportedTools: ToolId[];
@@ -40,6 +41,7 @@ export const emptyDraft = (): Draft => ({
   apiVersion: '',
   modelsText: '',
   costMultiplier: 1,
+  freeCredits: 0,
   maxConcurrency: 5,
   apiKey: '',
   supportedTools: ['curl'],
@@ -59,6 +61,7 @@ export function toCard(backend: BackendView): Card {
     apiVersion: backend.apiVersion ?? '',
     modelsText: backend.models.join(', '),
     costMultiplier: normalizeCostMultiplier(backend.costMultiplier),
+    freeCredits: normalizeFreeCredits(backend.freeCredits),
     maxConcurrency: normalizeMaxConcurrency(backend.maxConcurrency),
     apiKey: backend.apiKey ?? '',
     enabled: backend.enabled !== false,
@@ -84,6 +87,7 @@ export function toInput(card: Card): BackendInput {
     protocol,
     models: parseModels(card.modelsText),
     costMultiplier: normalizeCostMultiplier(card.costMultiplier),
+    freeCredits: normalizeFreeCredits(card.freeCredits),
     maxConcurrency: normalizeMaxConcurrency(card.maxConcurrency),
     apiKey: card.apiKey || undefined,
     apiVersion: card.protocol === 'azure-openai' ? card.apiVersion.trim() || undefined : undefined,

@@ -145,6 +145,12 @@ export function ConsumerInfo(props: ConsumerInfoProps) {
                                 formatMultiplier(node.costMultiplier)
                               )}
                             </span>
+                            {node.freeCredits > 0 ? (
+                              <span>
+                                {t('consumer.freeCredits')}: {formatCredits(node.freeCredits)}
+                                <span className={styles.helpDot} title={t('consumer.freeCreditsHelp')} aria-label={t('consumer.freeCreditsHelp')}>?</span>
+                              </span>
+                            ) : null}
                             <span>{t('consumer.versionPrefix')}: {node.versionPrefix}</span>
                           </div>
                           <div className={styles.ratingPanel}>

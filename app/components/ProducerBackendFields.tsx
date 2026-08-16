@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { normalizeMaxConcurrency } from '@/lib/concurrency';
-import { MAX_COST_MULTIPLIER, MIN_COST_MULTIPLIER, normalizeCostMultiplier } from '@/lib/cost';
+import { MAX_COST_MULTIPLIER, MAX_FREE_CREDITS, MIN_COST_MULTIPLIER, normalizeCostMultiplier, normalizeFreeCredits } from '@/lib/cost';
 import { useI18n } from '@/lib/i18n/context';
 import {
   consumerToolProtocol,
@@ -179,6 +179,13 @@ export function BackendFields({
         <span className={styles.helpDot} title={t('producer.costMultiplierHelp')} aria-label={t('producer.costMultiplierHelp')}>?</span>
       </label>
       <input type="number" disabled={disabled} min="0" max={MAX_COST_MULTIPLIER} step={MIN_COST_MULTIPLIER} value={value.costMultiplier} onChange={(e) => onChange({ costMultiplier: normalizeCostMultiplier(e.target.value) })} />
+
+      <label className={styles.labelWithHelp}>
+        {t('producer.freeCredits')}
+        <span className={styles.helpDot} title={t('producer.freeCreditsHelp')} aria-label={t('producer.freeCreditsHelp')}>?</span>
+      </label>
+      <input type="number" disabled={disabled} min="0" max={MAX_FREE_CREDITS} step="1" value={value.freeCredits} onChange={(e) => onChange({ freeCredits: normalizeFreeCredits(e.target.value) })} />
+      <div className="hint">{t('producer.freeCreditsHint')}</div>
 
       <label>{t('producer.maxConcurrency')}</label>
       <input type="number" disabled={disabled} min="1" step="1" value={value.maxConcurrency} onChange={(e) => onChange({ maxConcurrency: normalizeMaxConcurrency(e.target.value) })} />

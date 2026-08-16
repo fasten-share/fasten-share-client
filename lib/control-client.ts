@@ -16,6 +16,7 @@ export interface BackendView {
   protocol: string;
   models: string[];
   costMultiplier?: number;
+  freeCredits?: number;
   maxConcurrency?: number;
   apiKey: string; // decrypted in browser memory; '' when no key is stored
   apiVersion?: string; // azure-openai only
@@ -59,6 +60,7 @@ export interface BackendInput {
   protocol: string;
   models: string[];
   costMultiplier?: number;
+  freeCredits?: number;
   maxConcurrency?: number;
   apiKey?: string;
   apiVersion?: string;
@@ -148,6 +150,7 @@ export async function discoverModels(
   onlineMs: number;
   userId: string;
   costMultipliers?: Record<string, number>;
+  freeCredits?: Record<string, number>;
   creditThresholds?: Record<string, number>;
   creditThresholdMet?: Record<string, boolean>;
   supportedTools?: Record<string, ToolId[]>;
@@ -185,6 +188,7 @@ type CandidateResult = {
   onlineMs: number;
   userId: string;
   costMultipliers?: Record<string, number>;
+  freeCredits?: Record<string, number>;
   creditThresholds?: Record<string, number>;
   creditThresholdMet?: Record<string, boolean>;
   supportedTools?: Record<string, ToolId[]>;

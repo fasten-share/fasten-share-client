@@ -253,6 +253,9 @@ export const en = {
   'consumer.costMultiplier': 'Credit cost multiplier',
   'consumer.freeMultiplier': 'Free',
   'consumer.freeMultiplierHelp': 'Each request has a minimum charge of 10 credits',
+  'consumer.freeCredits': 'Free quota',
+  'consumer.freeCreditsHelp':
+    'This node grants a free credit quota for this model: within the quota the metered charge (bytes × multiplier) is waived, while the 10-credit minimum charge still applies to every request. The quota is in credits (free metered bytes = quota ÷ multiplier) and accumulates across requests until exhausted.',
   'consumer.creditThresholdNotMet': 'Credit threshold not met',
   'consumer.creditThresholdRequired': 'Required credits: {credits}',
   'consumer.versionPrefix': 'Version prefix',
@@ -352,6 +355,11 @@ export const en = {
   'producer.costMultiplierHelp':
     'The higher the credit cost multiplier, the more credits you earn for producing tokens. The lower the multiplier, the more likely your tokens are to be used sooner. 0 is allowed; otherwise the range is 0.000001–999999.',
   'producer.maxConcurrency': 'Maximum concurrent requests',
+  'producer.freeCredits': 'Free credit quota (per consumer)',
+  'producer.freeCreditsHelp':
+    'Free metered credits granted to each consumer for every model on this backend, capped per (node, model) pair. 0 disables the quota. Within the quota the metered charge (bytes × multiplier) is waived, but the 10-credit minimum charge still applies to every request; beyond the quota, normal billing resumes. The quota accumulates across requests until exhausted and never refreshes.',
+  'producer.freeCreditsHint':
+    'The quota is in credits: free metered bytes = quota ÷ multiplier. For example, 200,000 credits at 1× waives 200,000 metered bytes; at 2× it waives 100,000 metered bytes.',
   'producer.supportedTools': 'Supported consumer tools',
   'producer.supportedToolsHint': 'Options are filtered for {protocol}; at least one is required. Claude requires anthropic, Codex requires openai-response, and Pi does not support azure-openai yet.',
   'producer.saveStart': 'Save & start sharing',

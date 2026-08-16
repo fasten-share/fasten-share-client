@@ -11,6 +11,7 @@ export interface ConsumerNodeRow {
   followerCount: number;
   callCount: number;
   costMultiplier: number;
+  freeCredits: number;
   creditThreshold: number;
   creditThresholdMet: boolean;
   following: boolean;

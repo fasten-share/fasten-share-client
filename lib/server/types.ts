@@ -13,6 +13,8 @@ export interface Offering {
   protocol: Protocol;
   models: string[];
   costMultipliers?: Record<string, number>;
+  /** Per-model free credit quota granted to each consumer. Absent model = 0. */
+  freeCredits?: Record<string, number>;
   supportedTools?: Record<string, ToolId[]>;
   versionPrefixes?: Record<string, string>;
   maxConcurrency?: Record<string, number>;
@@ -26,6 +28,7 @@ export interface Candidate {
   onlineMs: number;
   userId: string;
   costMultipliers?: Record<string, number>;
+  freeCredits?: Record<string, number>;
   creditThresholds?: Record<string, number>;
   creditThresholdMet?: Record<string, boolean>;
   supportedTools?: Record<string, ToolId[]>;
@@ -39,6 +42,8 @@ export interface BackendConfig {
   protocol: Protocol;
   models: string[];
   costMultiplier?: number;
+  /** Free credit quota per consumer for every model on this backend (credits). */
+  freeCredits?: number;
   maxConcurrency?: number;
   apiVersion?: string;
   enabled?: boolean;

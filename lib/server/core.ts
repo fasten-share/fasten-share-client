@@ -8,7 +8,7 @@ import { emptyTraffic } from './producer-traffic';
 import type { BackendConfig, Candidate, ProducerStatus } from './types';
 import type { UserDto } from '../client/auth-types';
 import { normalizeSupportedTools } from '../tool-support';
-import { normalizeCostMultiplier } from '../cost';
+import { normalizeCostMultiplier, normalizeFreeCredits } from '../cost';
 import { normalizeMaxConcurrency } from '../concurrency';
 import { versionPrefixOrDefault } from '../version-prefix';
 import { PRODUCER_WS_PATH } from './protocol-version';
@@ -185,6 +185,7 @@ export class AccountRuntime {
       ...backend,
       id: backend.id || randomUUID(),
       costMultiplier: normalizeCostMultiplier(backend.costMultiplier),
+      freeCredits: normalizeFreeCredits(backend.freeCredits),
       maxConcurrency: normalizeMaxConcurrency(backend.maxConcurrency),
       supportedTools: normalizeSupportedTools(
         backend.supportedTools,

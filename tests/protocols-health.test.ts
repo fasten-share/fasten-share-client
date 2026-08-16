@@ -78,6 +78,23 @@ describe('producer health', () => {
     }]);
   });
 
+  it('expands free credit quotas per model and omits zero quotas', () => {
+    const result = buildAdvertisedOfferings([
+      backend({ id: 'first', models: ['a', 'b'], freeCredits: 200000 }),
+      backend({ id: 'second', models: ['b', 'c'], freeCredits: 0 }),
+    ], new Map([['first', true], ['second', true]]));
+    expect(result).toEqual([expect.objectContaining({
+      protocol: 'openai',
+      models: ['a', 'b', 'c'],
+      freeCredits: { a: 200000, b: 200000 },
+    })]);
+
+    const zeroed = buildAdvertisedOfferings([
+      backend({ models: ['a'], freeCredits: 0 }),
+    ], new Map([['b1', true]]));
+    expect(zeroed[0].freeCredits).toBeUndefined();
+  });
+
   it('publishes only the configured consumer-facing converted protocol', () => {
     const result = buildAdvertisedOfferings([
       backend({
